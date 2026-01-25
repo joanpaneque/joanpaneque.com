@@ -1,0 +1,58 @@
+name: laravel-build
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Encode .env content
+        id: encode_env
+        env:
+          DOT_ENV: ${{ secrets.DOT_ENV }}
+        run: |
+          echo "$DOT_ENV" | base64 -w 0 > /tmp/env_base64.txt
+          echo "ENV_B64=$(cat /tmp/env_base64.txt)" >> $GITHUB_OUTPUT
+
+      - name: Archive application
+        run: tar -czf app.tgz ./*
+
+      - name: Copy files to server (SCP)
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          source: ./app.tgz
+          target: ${{ secrets.SSH_DIR }}
+
+      - name: Run SSH commands on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd ${{ secrets.SSH_DIR }}
+            tar -xzf app.tgz
+            echo "${{ steps.encode_env.outputs.ENV_B64 }}" | base64 -d > .env
+            sudo chown -R www-data:www-data .env
+            sudo chmod 644 .env
+            mkdir -p storage/framework/{sessions,views,cache}
+            mkdir -p storage/logs
+            mkdir -p bootstrap/cache
+            mkdir -p lang
+            sudo chown -R www-data:www-data storage bootstrap/cache lang
+            sudo chmod -R 775 storage bootstrap/cache lang
+            export COMPOSER_ALLOW_SUPERUSER=1
+            composer install --no-dev --optimize-autoloader --classmap-authoritative
+            npm ci
+            npm run build
+            php artisan migrate --force
