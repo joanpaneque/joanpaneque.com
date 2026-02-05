@@ -32,6 +32,13 @@ import '@justinribeiro/lite-youtube';
                                 <p class="text-gray-300">Room Service</p>
                             </div>
                         </div>
+                        <div class="pointer-events-auto">
+                            <lite-youtube class="rounded-[8px]" videoid="9RzSmkce9HE" params="rel=0"></lite-youtube>
+                            <div class="mt-4">
+                                <p class="text-lg font-semibold text-white">Sector marketing digital</p>
+                                <p class="text-gray-300">Marca personal - Kirai</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
