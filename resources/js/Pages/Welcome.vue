@@ -4,6 +4,7 @@ import Background from '@/Components/Pages/Welcome/Background.vue';
 import AnimatedText from '@/Components/Pages/Welcome/AnimatedText.vue';
 import Button from '@/Components/Button.vue';
 import FuturisticReview from '@/Components/Pages/Welcome/FuturisticReview.vue';
+import BookingWidget from '@/Components/BookingWidget.vue';
 import '@justinribeiro/lite-youtube';
 
 const scrollToVideos = () => {
@@ -34,7 +35,11 @@ const scrollToVideos = () => {
             <div class="mx-auto px-4">
                 <div class="max-w-6xl mx-auto">
                     <FuturisticReview />
-                    
+
+                    <div class="mt-20 pointer-events-auto">
+                        <BookingWidget />
+                    </div>
+
                     <div id="videos-section" class="mt-20 grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div class="pointer-events-auto">
                             <lite-youtube class="rounded-[8px]" videoid="9RzSmkce9HE" params="rel=0"></lite-youtube>
