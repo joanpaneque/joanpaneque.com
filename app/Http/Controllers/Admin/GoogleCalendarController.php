@@ -14,10 +14,12 @@ class GoogleCalendarController extends Controller
 {
     public function connect(Request $request): RedirectResponse
     {
+        $redirectUri = $this->redirectUri($request);
+
         $client = new Client();
         $client->setClientId(config('services.google.client_id'));
         $client->setClientSecret(config('services.google.client_secret'));
-        $client->setRedirectUri(config('services.google.redirect_uri'));
+        $client->setRedirectUri($redirectUri);
         $client->addScope('https://www.googleapis.com/auth/calendar');
         $client->setAccessType('offline');
         $client->setPrompt('consent');
@@ -34,10 +36,12 @@ class GoogleCalendarController extends Controller
             ]);
         }
 
+        $redirectUri = $this->redirectUri($request);
+
         $client = new Client();
         $client->setClientId(config('services.google.client_id'));
         $client->setClientSecret(config('services.google.client_secret'));
-        $client->setRedirectUri(config('services.google.redirect_uri'));
+        $client->setRedirectUri($redirectUri);
 
         $token = $client->fetchAccessTokenWithAuthCode($code);
 
@@ -66,5 +70,31 @@ class GoogleCalendarController extends Controller
         $connected = GoogleToken::getRefreshToken() !== null;
 
         return view('admin.google-calendar', compact('connected'));
+    }
+
+    public function debug(Request $request): View
+    {
+        $explicit = config('services.google.redirect_uri');
+        $dynamic = $request->getSchemeAndHttpHost() . '/admin/google-calendar/callback';
+        $used = $this->redirectUri($request);
+
+        return view('admin.oauth-debug', [
+            'explicit' => $explicit ?: '(no definido en .env)',
+            'dynamic' => $dynamic,
+            'used' => $used,
+            'scheme' => $request->getScheme(),
+            'host' => $request->getHost(),
+            'url' => $request->fullUrl(),
+        ]);
+    }
+
+    private function redirectUri(Request $request): string
+    {
+        $explicit = config('services.google.redirect_uri');
+        if (!empty($explicit)) {
+            return rtrim($explicit, '/');
+        }
+
+        return $request->getSchemeAndHttpHost() . '/admin/google-calendar/callback';
     }
 }

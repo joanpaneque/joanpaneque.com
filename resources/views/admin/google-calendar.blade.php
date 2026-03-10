@@ -25,5 +25,6 @@
         <p>No hay calendario conectado.</p>
         <a href="{{ route('admin.google-calendar.connect') }}" class="btn">Conectar con Google</a>
     @endif
+    <p style="margin-top: 1.5rem;"><a href="{{ route('admin.google-calendar.debug') }}" style="font-size: 0.875rem; color: #6b7280;">Diagnostico OAuth</a></p>
 </body>
 </html>

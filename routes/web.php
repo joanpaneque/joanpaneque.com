@@ -26,4 +26,5 @@ Route::middleware('admin')->prefix('admin/google-calendar')->name('admin.google-
     Route::get('/', [GoogleCalendarController::class, 'index'])->name('index');
     Route::get('/connect', [GoogleCalendarController::class, 'connect'])->name('connect');
     Route::get('/callback', [GoogleCalendarController::class, 'callback'])->name('callback');
+    Route::get('/debug', [GoogleCalendarController::class, 'debug'])->name('debug');
 });
