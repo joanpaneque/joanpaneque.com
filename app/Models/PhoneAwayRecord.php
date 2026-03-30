@@ -4,14 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-class TeethPrompt extends Model
+class PhoneAwayRecord extends Model
 {
     protected $fillable = [
+        'telegram_user_id',
         'telegram_chat_id',
-        'telegram_message_id',
         'prompt_sent_at',
+        'answered_at',
         'grace_period_minutes',
-        'phase',
+        'delayed',
     ];
 
     /**
@@ -21,6 +22,8 @@ class TeethPrompt extends Model
     {
         return [
             'prompt_sent_at' => 'datetime',
+            'answered_at' => 'datetime',
+            'delayed' => 'boolean',
         ];
     }
 }

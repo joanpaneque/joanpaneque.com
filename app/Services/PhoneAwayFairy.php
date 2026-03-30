@@ -2,24 +2,21 @@
 
 namespace App\Services;
 
-use App\Models\TeethCleaning;
-use App\Models\TeethPrompt;
+use App\Models\PhoneAwayPrompt;
+use App\Models\PhoneAwayRecord;
 use RuntimeException;
 use Throwable;
 
-class ToothFairy
+class PhoneAwayFairy
 {
-    /** Tras esto, el prompt no admite registro (ni delayed) y se muestra como “no lavado”. */
     private const PROMPT_TTL_HOURS = 5;
 
+    public const PROMPT_MESSAGE = 'He dejado el móvil lejos';
+
     /**
-     * Envía la pregunta con botones Sí/No y guarda el prompt para el webhook.
-     *
-     * @param  string  $message  Texto de la pregunta (p. ej. mañana / mediodía / noche).
-     * @param  string|null  $phase  morning|midday|night para los mensajes editados al responder.
-     * @return TeethPrompt Incluye telegram_message_id cuando la API lo devuelve.
+     * Misma ventana que dientes por la noche: margen 4 h para delayed (en minutos).
      */
-    public function sendBrushingPrompt(int $gracePeriodMinutes, string $message = 'Te has lavado los dientes?', ?string $phase = null): TeethPrompt
+    public function sendPrompt(int $gracePeriodMinutes): PhoneAwayPrompt
     {
         $gracePeriodMinutes = max(1, $gracePeriodMinutes);
 
@@ -30,24 +27,23 @@ class ToothFairy
 
         $chatId = (string) $chatId;
 
-        $prompt = TeethPrompt::query()->create([
+        $prompt = PhoneAwayPrompt::query()->create([
             'telegram_chat_id' => $chatId,
             'prompt_sent_at' => now(),
             'grace_period_minutes' => $gracePeriodMinutes,
-            'phase' => $phase,
         ]);
 
         $replyMarkup = [
             'inline_keyboard' => [
                 [
-                    ['text' => 'Sí', 'callback_data' => 'y:'.$prompt->id],
-                    ['text' => 'No', 'callback_data' => 'n:'.$prompt->id],
+                    ['text' => 'Sí', 'callback_data' => 'my:'.$prompt->id],
+                    ['text' => 'No', 'callback_data' => 'mn:'.$prompt->id],
                 ],
             ],
         ];
 
         $response = TelegramBotService::sendMessage(
-            $message,
+            self::PROMPT_MESSAGE,
             $chatId,
             ['reply_markup' => json_encode($replyMarkup, JSON_THROW_ON_ERROR)]
         );
@@ -60,14 +56,11 @@ class ToothFairy
         return $prompt->fresh();
     }
 
-    /**
-     * Prompts con más de {@see PROMPT_TTL_HOURS} horas: edita el mensaje a “no lavado” y borra el prompt.
-     */
     public function expireStalePrompts(): void
     {
         $cutoff = now()->subHours(self::PROMPT_TTL_HOURS);
 
-        TeethPrompt::query()
+        PhoneAwayPrompt::query()
             ->where('prompt_sent_at', '<', $cutoff)
             ->orderBy('id')
             ->chunkById(50, function ($prompts): void {
@@ -78,8 +71,6 @@ class ToothFairy
     }
 
     /**
-     * Procesa un callback_query del webhook de Telegram.
-     *
      * @param  array<string, mixed>  $callbackQuery
      */
     public function handleCallbackQuery(array $callbackQuery): void
@@ -87,7 +78,7 @@ class ToothFairy
         $callbackQueryId = is_string($callbackQuery['id'] ?? null) ? $callbackQuery['id'] : '';
         $data = is_string($callbackQuery['data'] ?? null) ? $callbackQuery['data'] : '';
 
-        if ($callbackQueryId === '' || ! preg_match('/^([yn]):(\d+)$/', $data, $matches)) {
+        if ($callbackQueryId === '' || ! preg_match('/^m(y|n):(\d+)$/', $data, $matches)) {
             if ($callbackQueryId !== '') {
                 TelegramBotService::answerCallbackQuery($callbackQueryId, [
                     'text' => 'Acción no reconocida.',
@@ -97,10 +88,10 @@ class ToothFairy
             return;
         }
 
-        $action = $matches[1];
+        $letter = $matches[1];
         $promptId = (int) $matches[2];
 
-        $prompt = TeethPrompt::query()->find($promptId);
+        $prompt = PhoneAwayPrompt::query()->find($promptId);
         if ($prompt === null) {
             TelegramBotService::answerCallbackQuery($callbackQueryId, [
                 'text' => 'Este mensaje ya no está activo.',
@@ -121,23 +112,20 @@ class ToothFairy
             return;
         }
 
-        $phaseSuffix = $this->phaseSuffix($prompt->phase);
-
         $messageId = isset($callbackQuery['message']['message_id'])
             ? (int) $callbackQuery['message']['message_id']
             : null;
 
         if ($this->isPromptExpired($prompt)) {
-            $this->editPromptToNoAnswerAndDelete($prompt, $messageChatId, $messageId, $callbackQueryId, $action === 'y');
+            $this->editPromptToNoAnswerAndDelete($prompt, $messageChatId, $messageId, $callbackQueryId, $letter === 'y');
 
             return;
         }
 
-        if ($action === 'n') {
+        if ($letter === 'n') {
             if ($messageChatId !== null && $messageId !== null) {
-                $line = $this->noAnswerLine($prompt, $phaseSuffix);
                 TelegramBotService::editMessageText(
-                    $line,
+                    $this->noAnswerLine($prompt),
                     $messageChatId,
                     $messageId,
                     [
@@ -163,10 +151,9 @@ class ToothFairy
 
         $answeredAt = now();
         $elapsedMinutes = $prompt->prompt_sent_at->diffInMinutes($answeredAt);
-
         $delayed = $elapsedMinutes > $prompt->grace_period_minutes;
 
-        TeethCleaning::query()->create([
+        PhoneAwayRecord::query()->create([
             'telegram_user_id' => $telegramUserId,
             'telegram_chat_id' => $prompt->telegram_chat_id,
             'prompt_sent_at' => $prompt->prompt_sent_at,
@@ -182,8 +169,8 @@ class ToothFairy
         if ($messageChatId !== null && $yesMessageId !== null) {
             $dateStr = $answeredAt->format('d/m/Y');
             $line = $delayed
-                ? '⏰ '.$dateStr.' te has lavado los dientes'.$phaseSuffix.' (con retraso) 🦷'
-                : '✅ '.$dateStr.' te has lavado los dientes'.$phaseSuffix.' 🦷';
+                ? '⏰ '.$dateStr.' confirmado: móvil lejos (con retraso) 📵'
+                : '✅ '.$dateStr.' confirmado: móvil lejos 📵';
 
             TelegramBotService::editMessageText(
                 $line,
@@ -200,31 +187,29 @@ class ToothFairy
         TelegramBotService::answerCallbackQuery($callbackQueryId);
     }
 
-    private function isPromptExpired(TeethPrompt $prompt): bool
+    private function isPromptExpired(PhoneAwayPrompt $prompt): bool
     {
         return $prompt->prompt_sent_at->lt(now()->subHours(self::PROMPT_TTL_HOURS));
     }
 
-    /**
-     * Texto unificado: día del recordatorio + frase “no te has lavado…” + mañana/mediodía/noche.
-     */
-    private function noAnswerLine(TeethPrompt $prompt, string $phaseSuffix): string
+    private function noAnswerLine(PhoneAwayPrompt $prompt): string
     {
-        return '❌ '.$prompt->prompt_sent_at->format('d/m/Y').' no te has lavado los dientes'.$phaseSuffix;
+        return '❌ '.$prompt->prompt_sent_at->format('d/m/Y').' no dejaste el móvil lejos';
     }
 
-    /**
-     * Edita Telegram (si hay datos), borra el prompt y opcionalmente alerta (Sí caducado).
-     */
+    private function expiredLine(PhoneAwayPrompt $prompt): string
+    {
+        return '❌ '.$prompt->prompt_sent_at->format('d/m/Y').' caducó sin confirmar (móvil lejos)';
+    }
+
     private function editPromptToNoAnswerAndDelete(
-        TeethPrompt $prompt,
+        PhoneAwayPrompt $prompt,
         ?string $messageChatId = null,
         ?int $messageMessageId = null,
         ?string $callbackQueryId = null,
         bool $alertBecauseYesAfterExpiry = false
     ): void {
-        $phaseSuffix = $this->phaseSuffix($prompt->phase);
-        $line = $this->noAnswerLine($prompt, $phaseSuffix);
+        $line = $this->expiredLine($prompt);
 
         $chatId = $messageChatId ?? $prompt->telegram_chat_id;
         $msgId = $messageMessageId ?? $prompt->telegram_message_id;
@@ -240,7 +225,7 @@ class ToothFairy
                     ]
                 );
             } catch (Throwable) {
-                // Mensaje borrado o API: seguimos y eliminamos el prompt.
+                //
             }
         }
 
@@ -254,15 +239,5 @@ class ToothFairy
             }
             TelegramBotService::answerCallbackQuery($callbackQueryId, $params);
         }
-    }
-
-    private function phaseSuffix(?string $phase): string
-    {
-        return match ($phase) {
-            'morning' => ' por la mañana',
-            'midday' => ' al mediodía',
-            'night' => ' por la noche',
-            default => '',
-        };
     }
 }
