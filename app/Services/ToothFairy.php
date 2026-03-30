@@ -103,7 +103,7 @@ class ToothFairy
                 : null;
 
             if ($messageChatId !== null && $messageId !== null) {
-                $line = now()->format('d/m/Y').' no te has lavado los dientes';
+                $line = '❌ '.now()->format('d/m/Y').' no te has lavado los dientes';
                 TelegramBotService::editMessageText(
                     $line,
                     $messageChatId,
@@ -153,12 +153,28 @@ class ToothFairy
             'delayed' => $delayed,
         ]);
 
+        $yesMessageId = isset($callbackQuery['message']['message_id'])
+            ? (int) $callbackQuery['message']['message_id']
+            : null;
+
+        if ($messageChatId !== null && $yesMessageId !== null) {
+            $dateStr = $answeredAt->format('d/m/Y');
+            $line = $delayed
+                ? '⏰ '.$dateStr.' te has lavado los dientes (con retraso) 🦷'
+                : '✅ '.$dateStr.' te has lavado los dientes 🦷';
+
+            TelegramBotService::editMessageText(
+                $line,
+                $messageChatId,
+                $yesMessageId,
+                [
+                    'reply_markup' => json_encode(['inline_keyboard' => []], JSON_THROW_ON_ERROR),
+                ]
+            );
+        }
+
         $prompt->delete();
 
-        TelegramBotService::answerCallbackQuery($callbackQueryId, [
-            'text' => $delayed
-                ? 'Registrado con retraso.'
-                : 'Registrado a tiempo.',
-        ]);
+        TelegramBotService::answerCallbackQuery($callbackQueryId);
     }
 }
