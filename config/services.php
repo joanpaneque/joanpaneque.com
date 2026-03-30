@@ -43,4 +43,10 @@ return [
         'admin_secret' => env('GOOGLE_ADMIN_SECRET'),
     ],
 
+    'telegram' => [
+        'api_token' => env('TELEGRAM_API_TOKEN'),
+        'chat_id' => env('TELEGRAM_CHAT_ID'),
+        'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
+    ],
+
 ];
