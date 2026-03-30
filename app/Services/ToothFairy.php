@@ -98,10 +98,24 @@ class ToothFairy
         }
 
         if ($action === 'n') {
+            $messageId = isset($callbackQuery['message']['message_id'])
+                ? (int) $callbackQuery['message']['message_id']
+                : null;
+
+            if ($messageChatId !== null && $messageId !== null) {
+                $line = now()->format('d/m/Y').' no te has lavado los dientes';
+                TelegramBotService::editMessageText(
+                    $line,
+                    $messageChatId,
+                    $messageId,
+                    [
+                        'reply_markup' => json_encode(['inline_keyboard' => []], JSON_THROW_ON_ERROR),
+                    ]
+                );
+            }
+
             $prompt->delete();
-            TelegramBotService::answerCallbackQuery($callbackQueryId, [
-                'text' => 'Entendido.',
-            ]);
+            TelegramBotService::answerCallbackQuery($callbackQueryId);
 
             return;
         }

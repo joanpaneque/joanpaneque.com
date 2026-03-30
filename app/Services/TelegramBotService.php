@@ -84,6 +84,23 @@ class TelegramBotService
     }
 
     /**
+     * Edita el texto de un mensaje existente (p. ej. quitar botones con reply_markup vacío).
+     *
+     * @param  array<string, mixed>  $options  parse_mode, reply_markup, link_preview_options, etc.
+     * @return array<string, mixed>
+     */
+    public static function editMessageText(string $text, string $chatId, int $messageId, array $options = []): array
+    {
+        $params = array_merge([
+            'chat_id' => $chatId,
+            'message_id' => $messageId,
+            'text' => $text,
+        ], $options);
+
+        return self::post('editMessageText', $params);
+    }
+
+    /**
      * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
