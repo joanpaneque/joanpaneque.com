@@ -61,11 +61,12 @@ class PhoneAwayFairy
         $cutoff = now()->subHours(self::PROMPT_TTL_HOURS);
 
         PhoneAwayPrompt::query()
+            ->whereNull('closed_at')
             ->where('prompt_sent_at', '<', $cutoff)
             ->orderBy('id')
             ->chunkById(50, function ($prompts): void {
                 foreach ($prompts as $prompt) {
-                    $this->editPromptToNoAnswerAndDelete($prompt);
+                    $this->editPromptToNoAnswerAndClose($prompt);
                 }
             });
     }
@@ -91,7 +92,7 @@ class PhoneAwayFairy
         $letter = $matches[1];
         $promptId = (int) $matches[2];
 
-        $prompt = PhoneAwayPrompt::query()->find($promptId);
+        $prompt = PhoneAwayPrompt::query()->whereNull('closed_at')->find($promptId);
         if ($prompt === null) {
             TelegramBotService::answerCallbackQuery($callbackQueryId, [
                 'text' => 'Este mensaje ya no está activo.',
@@ -117,7 +118,7 @@ class PhoneAwayFairy
             : null;
 
         if ($this->isPromptExpired($prompt)) {
-            $this->editPromptToNoAnswerAndDelete($prompt, $messageChatId, $messageId, $callbackQueryId, $letter === 'y');
+            $this->editPromptToNoAnswerAndClose($prompt, $messageChatId, $messageId, $callbackQueryId, $letter === 'y');
 
             return;
         }
@@ -134,7 +135,7 @@ class PhoneAwayFairy
                 );
             }
 
-            $prompt->delete();
+            $prompt->update(['closed_at' => now()]);
             TelegramBotService::answerCallbackQuery($callbackQueryId);
 
             return;
@@ -182,7 +183,7 @@ class PhoneAwayFairy
             );
         }
 
-        $prompt->delete();
+        $prompt->update(['closed_at' => now()]);
 
         TelegramBotService::answerCallbackQuery($callbackQueryId);
     }
@@ -202,7 +203,7 @@ class PhoneAwayFairy
         return '❌ '.$prompt->prompt_sent_at->format('d/m/Y').' caducó sin confirmar (móvil lejos)';
     }
 
-    private function editPromptToNoAnswerAndDelete(
+    private function editPromptToNoAnswerAndClose(
         PhoneAwayPrompt $prompt,
         ?string $messageChatId = null,
         ?int $messageMessageId = null,
@@ -229,7 +230,7 @@ class PhoneAwayFairy
             }
         }
 
-        $prompt->delete();
+        $prompt->update(['closed_at' => now()]);
 
         if ($callbackQueryId !== null && $callbackQueryId !== '') {
             $params = [];

@@ -11,6 +11,7 @@ class PhoneAwayPrompt extends Model
         'telegram_message_id',
         'prompt_sent_at',
         'grace_period_minutes',
+        'closed_at',
     ];
 
     /**
@@ -20,6 +21,7 @@ class PhoneAwayPrompt extends Model
     {
         return [
             'prompt_sent_at' => 'datetime',
+            'closed_at' => 'datetime',
         ];
     }
 }

@@ -68,11 +68,12 @@ class ToothFairy
         $cutoff = now()->subHours(self::PROMPT_TTL_HOURS);
 
         TeethPrompt::query()
+            ->whereNull('closed_at')
             ->where('prompt_sent_at', '<', $cutoff)
             ->orderBy('id')
             ->chunkById(50, function ($prompts): void {
                 foreach ($prompts as $prompt) {
-                    $this->editPromptToNoAnswerAndDelete($prompt);
+                    $this->editPromptToNoAnswerAndClose($prompt);
                 }
             });
     }
@@ -100,7 +101,7 @@ class ToothFairy
         $action = $matches[1];
         $promptId = (int) $matches[2];
 
-        $prompt = TeethPrompt::query()->find($promptId);
+        $prompt = TeethPrompt::query()->whereNull('closed_at')->find($promptId);
         if ($prompt === null) {
             TelegramBotService::answerCallbackQuery($callbackQueryId, [
                 'text' => 'Este mensaje ya no está activo.',
@@ -128,7 +129,7 @@ class ToothFairy
             : null;
 
         if ($this->isPromptExpired($prompt)) {
-            $this->editPromptToNoAnswerAndDelete($prompt, $messageChatId, $messageId, $callbackQueryId, $action === 'y');
+            $this->editPromptToNoAnswerAndClose($prompt, $messageChatId, $messageId, $callbackQueryId, $action === 'y');
 
             return;
         }
@@ -146,7 +147,7 @@ class ToothFairy
                 );
             }
 
-            $prompt->delete();
+            $prompt->update(['closed_at' => now()]);
             TelegramBotService::answerCallbackQuery($callbackQueryId);
 
             return;
@@ -195,7 +196,7 @@ class ToothFairy
             );
         }
 
-        $prompt->delete();
+        $prompt->update(['closed_at' => now()]);
 
         TelegramBotService::answerCallbackQuery($callbackQueryId);
     }
@@ -214,9 +215,9 @@ class ToothFairy
     }
 
     /**
-     * Edita Telegram (si hay datos), borra el prompt y opcionalmente alerta (Sí caducado).
+     * Edita Telegram (si hay datos), marca el prompt cerrado y opcionalmente alerta (Sí caducado).
      */
-    private function editPromptToNoAnswerAndDelete(
+    private function editPromptToNoAnswerAndClose(
         TeethPrompt $prompt,
         ?string $messageChatId = null,
         ?int $messageMessageId = null,
@@ -240,11 +241,11 @@ class ToothFairy
                     ]
                 );
             } catch (Throwable) {
-                // Mensaje borrado o API: seguimos y eliminamos el prompt.
+                // Mensaje borrado o API: seguimos y cerramos el prompt.
             }
         }
 
-        $prompt->delete();
+        $prompt->update(['closed_at' => now()]);
 
         if ($callbackQueryId !== null && $callbackQueryId !== '') {
             $params = [];

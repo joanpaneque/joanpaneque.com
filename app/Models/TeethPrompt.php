@@ -12,6 +12,7 @@ class TeethPrompt extends Model
         'prompt_sent_at',
         'grace_period_minutes',
         'phase',
+        'closed_at',
     ];
 
     /**
@@ -21,6 +22,7 @@ class TeethPrompt extends Model
     {
         return [
             'prompt_sent_at' => 'datetime',
+            'closed_at' => 'datetime',
         ];
     }
 }
