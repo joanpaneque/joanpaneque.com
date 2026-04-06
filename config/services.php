@@ -47,6 +47,8 @@ return [
         'api_token' => env('TELEGRAM_API_TOKEN'),
         'chat_id' => env('TELEGRAM_CHAT_ID'),
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
+        /** URL pública HTTPS del webhook; si vacío, se usa route('telegram.webhook') con APP_URL. */
+        'webhook_url' => env('TELEGRAM_WEBHOOK_URL'),
     ],
 
 ];

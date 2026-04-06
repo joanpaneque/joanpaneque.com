@@ -6,6 +6,7 @@ use App\Services\PhoneAwayFairy;
 use App\Services\ToothFairy;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class TelegramWebhookController extends Controller
@@ -24,6 +25,29 @@ class TelegramWebhookController extends Controller
         }
 
         $update = $request->all();
+
+        if (isset($update['message_reaction']) && is_array($update['message_reaction'])) {
+            $mr = $update['message_reaction'];
+            $messageId = $mr['message_id'] ?? null;
+            $chatId = isset($mr['chat']['id']) ? (string) $mr['chat']['id'] : null;
+            Log::info('Telegram: reacción a mensaje', [
+                'message_id' => $messageId,
+                'chat_id' => $chatId,
+                'message_reaction' => $mr,
+            ]);
+        }
+
+        if (isset($update['message_reaction_count']) && is_array($update['message_reaction_count'])) {
+            $mrc = $update['message_reaction_count'];
+            $messageId = $mrc['message_id'] ?? null;
+            $chatId = isset($mrc['chat']['id']) ? (string) $mrc['chat']['id'] : null;
+            Log::info('Telegram: conteo de reacciones en mensaje', [
+                'message_id' => $messageId,
+                'chat_id' => $chatId,
+                'message_reaction_count' => $mrc,
+            ]);
+        }
+
         if (isset($update['callback_query']) && is_array($update['callback_query'])) {
             $data = $update['callback_query']['data'] ?? '';
             $data = is_string($data) ? $data : '';

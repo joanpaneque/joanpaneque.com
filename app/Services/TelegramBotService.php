@@ -156,6 +156,26 @@ class TelegramBotService
     }
 
     /**
+     * Webhook con callback_query + reacciones (message_reaction / message_reaction_count).
+     * Telegram solo envía reacciones si están en allowed_updates.
+     *
+     * @return array<string, mixed>
+     */
+    public static function setWebhookWithReactions(string $url, ?string $secretToken = null): array
+    {
+        $params = [
+            'url' => $url,
+            'allowed_updates' => json_encode(['callback_query', 'message_reaction', 'message_reaction_count'], JSON_THROW_ON_ERROR),
+        ];
+
+        if (is_string($secretToken) && $secretToken !== '') {
+            $params['secret_token'] = $secretToken;
+        }
+
+        return self::post('setWebhook', $params);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function deleteWebhook(bool $dropPendingUpdates = false): array
