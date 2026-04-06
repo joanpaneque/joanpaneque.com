@@ -11,7 +11,7 @@ class TelegramSetWebhookCommand extends Command
     protected $signature = 'telegram:set-webhook
                             {--url= : URL HTTPS del webhook (por defecto TELEGRAM_WEBHOOK_URL o route telegram.webhook)}';
 
-    protected $description = 'Registra setWebhook con callback_query + reacciones (necesario para logs de message_id al reaccionar)';
+    protected $description = 'Registra setWebhook con callback_query, mensajes y reacciones (necesario para logs en grupo y message_id)';
 
     public function handle(): int
     {
@@ -30,7 +30,7 @@ class TelegramSetWebhookCommand extends Command
             $result = TelegramBotService::setWebhookWithReactions($url, $secret);
 
             if (($result['ok'] ?? false) === true) {
-                $this->info('Webhook registrado con allowed_updates: callback_query, message_reaction, message_reaction_count.');
+                $this->info('Webhook registrado con allowed_updates: callback_query, message, message_reaction, message_reaction_count.');
                 $this->line('URL: '.$url);
 
                 return self::SUCCESS;

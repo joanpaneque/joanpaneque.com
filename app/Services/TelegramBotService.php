@@ -165,7 +165,7 @@ class TelegramBotService
     {
         $params = [
             'url' => $url,
-            'allowed_updates' => json_encode(['callback_query', 'message_reaction', 'message_reaction_count'], JSON_THROW_ON_ERROR),
+            'allowed_updates' => json_encode(['callback_query', 'message', 'message_reaction', 'message_reaction_count'], JSON_THROW_ON_ERROR),
         ];
 
         if (is_string($secretToken) && $secretToken !== '') {

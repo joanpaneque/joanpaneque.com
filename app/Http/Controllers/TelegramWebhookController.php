@@ -26,6 +26,25 @@ class TelegramWebhookController extends Controller
 
         $update = $request->all();
 
+        if (isset($update['message']) && is_array($update['message'])) {
+            $msg = $update['message'];
+            $chat = is_array($msg['chat'] ?? null) ? $msg['chat'] : [];
+            $chatId = isset($chat['id']) ? (string) $chat['id'] : null;
+            $chatType = is_string($chat['type'] ?? null) ? $chat['type'] : null;
+            $messageId = $msg['message_id'] ?? null;
+            $text = $msg['text'] ?? $msg['caption'] ?? null;
+            $text = is_string($text) ? mb_substr($text, 0, 2000) : null;
+            $fromId = isset($msg['from']['id']) ? (int) $msg['from']['id'] : null;
+
+            Log::info('Telegram: mensaje recibido', [
+                'message_id' => $messageId,
+                'chat_id' => $chatId,
+                'chat_type' => $chatType,
+                'from_id' => $fromId,
+                'text' => $text,
+            ]);
+        }
+
         if (isset($update['message_reaction']) && is_array($update['message_reaction'])) {
             $mr = $update['message_reaction'];
             $messageId = $mr['message_id'] ?? null;
