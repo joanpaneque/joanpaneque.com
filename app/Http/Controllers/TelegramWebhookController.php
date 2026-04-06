@@ -26,6 +26,10 @@ class TelegramWebhookController extends Controller
 
         $update = $request->all();
 
+        if (config('services.telegram.log_update_keys')) {
+            Log::info('Telegram: claves del update', ['keys' => array_keys($update)]);
+        }
+
         if (isset($update['message']) && is_array($update['message'])) {
             $msg = $update['message'];
             $chat = is_array($msg['chat'] ?? null) ? $msg['chat'] : [];

@@ -49,6 +49,8 @@ return [
         'webhook_secret' => env('TELEGRAM_WEBHOOK_SECRET'),
         /** URL pública HTTPS del webhook; si vacío, se usa route('telegram.webhook') con APP_URL. */
         'webhook_url' => env('TELEGRAM_WEBHOOK_URL'),
+        /** Si true, cada webhook escribe en log las claves del update (útil para ver si llega message_reaction). */
+        'log_update_keys' => env('TELEGRAM_LOG_UPDATE_KEYS', false),
     ],
 
 ];
