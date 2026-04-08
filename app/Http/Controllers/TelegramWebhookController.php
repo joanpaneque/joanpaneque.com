@@ -47,6 +47,8 @@ class TelegramWebhookController extends Controller
                 'from_id' => $fromId,
                 'text' => $text,
             ]);
+
+            $toothFairy->handleTeethResponseNoteIfApplicable($msg);
         }
 
         if (isset($update['message_reaction']) && is_array($update['message_reaction'])) {

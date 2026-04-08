@@ -61,6 +61,7 @@ class DentalHistoryFromNotesSeeder extends Seeder
                     'answered_at' => $answered,
                     'grace_period_minutes' => $grace,
                     'delayed' => $delayed,
+                    'completed' => true,
                 ]);
             }
 

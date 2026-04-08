@@ -5,12 +5,9 @@ namespace App\Services;
 use App\Models\PhoneAwayPrompt;
 use App\Models\PhoneAwayRecord;
 use RuntimeException;
-use Throwable;
 
 class PhoneAwayFairy
 {
-    private const PROMPT_TTL_HOURS = 5;
-
     public const PROMPT_MESSAGE = 'He dejado el móvil lejos';
 
     /**
@@ -54,21 +51,6 @@ class PhoneAwayFairy
         }
 
         return $prompt->fresh();
-    }
-
-    public function expireStalePrompts(): void
-    {
-        $cutoff = now()->subHours(self::PROMPT_TTL_HOURS);
-
-        PhoneAwayPrompt::query()
-            ->whereNull('closed_at')
-            ->where('prompt_sent_at', '<', $cutoff)
-            ->orderBy('id')
-            ->chunkById(50, function ($prompts): void {
-                foreach ($prompts as $prompt) {
-                    $this->editPromptToNoAnswerAndClose($prompt);
-                }
-            });
     }
 
     /**
@@ -117,12 +99,6 @@ class PhoneAwayFairy
             ? (int) $callbackQuery['message']['message_id']
             : null;
 
-        if ($this->isPromptExpired($prompt)) {
-            $this->editPromptToNoAnswerAndClose($prompt, $messageChatId, $messageId, $callbackQueryId, $letter === 'y');
-
-            return;
-        }
-
         if ($letter === 'n') {
             if ($messageChatId !== null && $messageId !== null) {
                 TelegramBotService::editMessageText(
@@ -163,11 +139,9 @@ class PhoneAwayFairy
             'delayed' => $delayed,
         ]);
 
-        $yesMessageId = isset($callbackQuery['message']['message_id'])
-            ? (int) $callbackQuery['message']['message_id']
-            : null;
+        $resolvedMessageId = $messageId ?? $prompt->telegram_message_id;
 
-        if ($messageChatId !== null && $yesMessageId !== null) {
+        if ($messageChatId !== null && $resolvedMessageId !== null) {
             $dateStr = $answeredAt->format('d/m/Y');
             $line = $delayed
                 ? '⏰ '.$dateStr.' confirmado: móvil lejos (con retraso) 📵'
@@ -176,7 +150,7 @@ class PhoneAwayFairy
             TelegramBotService::editMessageText(
                 $line,
                 $messageChatId,
-                $yesMessageId,
+                $resolvedMessageId,
                 [
                     'reply_markup' => json_encode(['inline_keyboard' => []], JSON_THROW_ON_ERROR),
                 ]
@@ -188,57 +162,8 @@ class PhoneAwayFairy
         TelegramBotService::answerCallbackQuery($callbackQueryId);
     }
 
-    private function isPromptExpired(PhoneAwayPrompt $prompt): bool
-    {
-        return $prompt->prompt_sent_at->lt(now()->subHours(self::PROMPT_TTL_HOURS));
-    }
-
     private function noAnswerLine(PhoneAwayPrompt $prompt): string
     {
         return '❌ '.$prompt->prompt_sent_at->format('d/m/Y').' no dejaste el móvil lejos';
-    }
-
-    private function expiredLine(PhoneAwayPrompt $prompt): string
-    {
-        return '❌ '.$prompt->prompt_sent_at->format('d/m/Y').' caducó sin confirmar (móvil lejos)';
-    }
-
-    private function editPromptToNoAnswerAndClose(
-        PhoneAwayPrompt $prompt,
-        ?string $messageChatId = null,
-        ?int $messageMessageId = null,
-        ?string $callbackQueryId = null,
-        bool $alertBecauseYesAfterExpiry = false
-    ): void {
-        $line = $this->expiredLine($prompt);
-
-        $chatId = $messageChatId ?? $prompt->telegram_chat_id;
-        $msgId = $messageMessageId ?? $prompt->telegram_message_id;
-
-        if ($msgId !== null) {
-            try {
-                TelegramBotService::editMessageText(
-                    $line,
-                    $chatId,
-                    (int) $msgId,
-                    [
-                        'reply_markup' => json_encode(['inline_keyboard' => []], JSON_THROW_ON_ERROR),
-                    ]
-                );
-            } catch (Throwable) {
-                //
-            }
-        }
-
-        $prompt->update(['closed_at' => now()]);
-
-        if ($callbackQueryId !== null && $callbackQueryId !== '') {
-            $params = [];
-            if ($alertBecauseYesAfterExpiry) {
-                $params['text'] = 'Han pasado más de 5 horas; no se puede registrar.';
-                $params['show_alert'] = true;
-            }
-            TelegramBotService::answerCallbackQuery($callbackQueryId, $params);
-        }
     }
 }

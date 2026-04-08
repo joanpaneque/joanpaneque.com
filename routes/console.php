@@ -38,8 +38,3 @@ Schedule::call(function () {
     );
     app(PhoneAwayFairy::class)->sendPrompt(4 * 60);
 })->dailyAt('20:00')->timezone('Europe/Madrid');
-
-Schedule::call(function () {
-    app(ToothFairy::class)->expireStalePrompts();
-    app(PhoneAwayFairy::class)->expireStalePrompts();
-})->everyFiveMinutes();

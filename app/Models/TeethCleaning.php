@@ -9,10 +9,14 @@ class TeethCleaning extends Model
     protected $fillable = [
         'telegram_user_id',
         'telegram_chat_id',
+        'telegram_message_id',
+        'phase',
         'prompt_sent_at',
         'answered_at',
         'grace_period_minutes',
         'delayed',
+        'completed',
+        'response_note',
     ];
 
     /**
@@ -24,6 +28,7 @@ class TeethCleaning extends Model
             'prompt_sent_at' => 'datetime',
             'answered_at' => 'datetime',
             'delayed' => 'boolean',
+            'completed' => 'boolean',
         ];
     }
 }

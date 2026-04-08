@@ -1,11 +1,20 @@
 <?php
 
 use App\Http\Controllers\Admin\GoogleCalendarController;
+use App\Http\Controllers\PersonalController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
     return Inertia::render('Welcome');
+});
+
+Route::get('/personal/login', [PersonalController::class, 'showLogin'])->name('personal.login');
+Route::post('/personal/login', [PersonalController::class, 'login'])->name('personal.login.store');
+
+Route::middleware('auth')->group(function () {
+    Route::get('/personal', [PersonalController::class, 'dashboard'])->name('personal.dashboard');
+    Route::post('/personal/logout', [PersonalController::class, 'logout'])->name('personal.logout');
 });
 
 Route::get('/admin/login', function () {

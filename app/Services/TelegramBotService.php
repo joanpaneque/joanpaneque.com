@@ -101,6 +101,19 @@ class TelegramBotService
     }
 
     /**
+     * Borra un mensaje del chat (p. ej. el texto que envió el usuario).
+     *
+     * @return array<string, mixed>
+     */
+    public static function deleteMessage(string $chatId, int $messageId): array
+    {
+        return self::post('deleteMessage', [
+            'chat_id' => $chatId,
+            'message_id' => $messageId,
+        ]);
+    }
+
+    /**
      * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */

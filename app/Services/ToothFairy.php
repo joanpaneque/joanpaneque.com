@@ -4,14 +4,12 @@ namespace App\Services;
 
 use App\Models\TeethCleaning;
 use App\Models\TeethPrompt;
+use Carbon\Carbon;
 use RuntimeException;
 use Throwable;
 
 class ToothFairy
 {
-    /** Tras esto, el prompt no admite registro (ni delayed) y se muestra como “no lavado”. */
-    private const PROMPT_TTL_HOURS = 5;
-
     /**
      * Envía la pregunta con botones Sí/No y guarda el prompt para el webhook.
      *
@@ -58,24 +56,6 @@ class ToothFairy
         }
 
         return $prompt->fresh();
-    }
-
-    /**
-     * Prompts con más de {@see PROMPT_TTL_HOURS} horas: edita el mensaje a “no lavado” y borra el prompt.
-     */
-    public function expireStalePrompts(): void
-    {
-        $cutoff = now()->subHours(self::PROMPT_TTL_HOURS);
-
-        TeethPrompt::query()
-            ->whereNull('closed_at')
-            ->where('prompt_sent_at', '<', $cutoff)
-            ->orderBy('id')
-            ->chunkById(50, function ($prompts): void {
-                foreach ($prompts as $prompt) {
-                    $this->editPromptToNoAnswerAndClose($prompt);
-                }
-            });
     }
 
     /**
@@ -128,19 +108,37 @@ class ToothFairy
             ? (int) $callbackQuery['message']['message_id']
             : null;
 
-        if ($this->isPromptExpired($prompt)) {
-            $this->editPromptToNoAnswerAndClose($prompt, $messageChatId, $messageId, $callbackQueryId, $action === 'y');
-
-            return;
-        }
-
         if ($action === 'n') {
-            if ($messageChatId !== null && $messageId !== null) {
-                $line = $this->noAnswerLine($prompt, $phaseSuffix);
+            $telegramUserId = isset($callbackQuery['from']['id']) ? (int) $callbackQuery['from']['id'] : null;
+            if ($telegramUserId === null) {
+                TelegramBotService::answerCallbackQuery($callbackQueryId, [
+                    'text' => 'No se pudo identificar al usuario.',
+                ]);
+
+                return;
+            }
+
+            $answeredAt = now();
+            $resolvedMessageId = $messageId ?? $prompt->telegram_message_id;
+
+            TeethCleaning::query()->create([
+                'telegram_user_id' => $telegramUserId,
+                'telegram_chat_id' => $prompt->telegram_chat_id,
+                'telegram_message_id' => $resolvedMessageId,
+                'phase' => $prompt->phase,
+                'prompt_sent_at' => $prompt->prompt_sent_at,
+                'answered_at' => $answeredAt,
+                'grace_period_minutes' => $prompt->grace_period_minutes,
+                'delayed' => false,
+                'completed' => false,
+            ]);
+
+            if ($messageChatId !== null && $resolvedMessageId !== null) {
+                $line = $this->noAnswerLineWithPencil($prompt, $phaseSuffix);
                 TelegramBotService::editMessageText(
                     $line,
                     $messageChatId,
-                    $messageId,
+                    $resolvedMessageId,
                     [
                         'reply_markup' => json_encode(['inline_keyboard' => []], JSON_THROW_ON_ERROR),
                     ]
@@ -167,29 +165,27 @@ class ToothFairy
 
         $delayed = $elapsedMinutes > $prompt->grace_period_minutes;
 
+        $resolvedMessageId = $messageId ?? $prompt->telegram_message_id;
+
         TeethCleaning::query()->create([
             'telegram_user_id' => $telegramUserId,
             'telegram_chat_id' => $prompt->telegram_chat_id,
+            'telegram_message_id' => $resolvedMessageId,
+            'phase' => $prompt->phase,
             'prompt_sent_at' => $prompt->prompt_sent_at,
             'answered_at' => $answeredAt,
             'grace_period_minutes' => $prompt->grace_period_minutes,
             'delayed' => $delayed,
+            'completed' => true,
         ]);
 
-        $yesMessageId = isset($callbackQuery['message']['message_id'])
-            ? (int) $callbackQuery['message']['message_id']
-            : null;
-
-        if ($messageChatId !== null && $yesMessageId !== null) {
-            $dateStr = $answeredAt->format('d/m/Y');
-            $line = $delayed
-                ? '⏰ '.$dateStr.' te has lavado los dientes'.$phaseSuffix.' (con retraso) 🦷'
-                : '✅ '.$dateStr.' te has lavado los dientes'.$phaseSuffix.' 🦷';
+        if ($messageChatId !== null && $resolvedMessageId !== null) {
+            $line = $this->teethYesLine($answeredAt, $phaseSuffix, $delayed, true);
 
             TelegramBotService::editMessageText(
                 $line,
                 $messageChatId,
-                $yesMessageId,
+                $resolvedMessageId,
                 [
                     'reply_markup' => json_encode(['inline_keyboard' => []], JSON_THROW_ON_ERROR),
                 ]
@@ -201,60 +197,122 @@ class ToothFairy
         TelegramBotService::answerCallbackQuery($callbackQueryId);
     }
 
-    private function isPromptExpired(TeethPrompt $prompt): bool
-    {
-        return $prompt->prompt_sent_at->lt(now()->subHours(self::PROMPT_TTL_HOURS));
-    }
-
     /**
-     * Texto unificado: día del recordatorio + frase “no te has lavado…” + mañana/mediodía/noche.
+     * Respuesta citando ✏️⏰ (retraso) o ✏️❌ (no): guarda motivo en response_note, edita sin lápiz y borra el mensaje del usuario.
+     *
+     * @param  array<string, mixed>  $message
      */
-    private function noAnswerLine(TeethPrompt $prompt, string $phaseSuffix): string
+    public function handleTeethResponseNoteIfApplicable(array $message): void
     {
-        return '❌ '.$prompt->prompt_sent_at->format('d/m/Y').' no te has lavado los dientes'.$phaseSuffix;
-    }
-
-    /**
-     * Edita Telegram (si hay datos), marca el prompt cerrado y opcionalmente alerta (Sí caducado).
-     */
-    private function editPromptToNoAnswerAndClose(
-        TeethPrompt $prompt,
-        ?string $messageChatId = null,
-        ?int $messageMessageId = null,
-        ?string $callbackQueryId = null,
-        bool $alertBecauseYesAfterExpiry = false
-    ): void {
-        $phaseSuffix = $this->phaseSuffix($prompt->phase);
-        $line = $this->noAnswerLine($prompt, $phaseSuffix);
-
-        $chatId = $messageChatId ?? $prompt->telegram_chat_id;
-        $msgId = $messageMessageId ?? $prompt->telegram_message_id;
-
-        if ($msgId !== null) {
-            try {
-                TelegramBotService::editMessageText(
-                    $line,
-                    $chatId,
-                    (int) $msgId,
-                    [
-                        'reply_markup' => json_encode(['inline_keyboard' => []], JSON_THROW_ON_ERROR),
-                    ]
-                );
-            } catch (Throwable) {
-                // Mensaje borrado o API: seguimos y cerramos el prompt.
-            }
+        $from = $message['from'] ?? null;
+        if (! is_array($from) || ($from['is_bot'] ?? false) === true) {
+            return;
         }
 
-        $prompt->update(['closed_at' => now()]);
-
-        if ($callbackQueryId !== null && $callbackQueryId !== '') {
-            $params = [];
-            if ($alertBecauseYesAfterExpiry) {
-                $params['text'] = 'Han pasado más de 5 horas; no se puede registrar.';
-                $params['show_alert'] = true;
-            }
-            TelegramBotService::answerCallbackQuery($callbackQueryId, $params);
+        if (! isset($message['reply_to_message']) || ! is_array($message['reply_to_message'])) {
+            return;
         }
+
+        $rawText = $message['text'] ?? $message['caption'] ?? null;
+        if (! is_string($rawText)) {
+            return;
+        }
+
+        $text = trim($rawText);
+        if ($text === '' || str_starts_with($text, '/')) {
+            return;
+        }
+
+        $text = mb_substr($text, 0, 1000);
+
+        $chatId = isset($message['chat']['id']) ? (string) $message['chat']['id'] : null;
+        $userMessageId = isset($message['message_id']) ? (int) $message['message_id'] : null;
+        $fromId = isset($message['from']['id']) ? (int) $message['from']['id'] : null;
+
+        if ($chatId === null || $userMessageId === null || $fromId === null) {
+            return;
+        }
+
+        $replyTo = $message['reply_to_message'];
+        $replyMessageId = isset($replyTo['message_id']) ? (int) $replyTo['message_id'] : null;
+        if ($replyMessageId === null) {
+            return;
+        }
+
+        $record = TeethCleaning::query()
+            ->where('telegram_chat_id', $chatId)
+            ->where('telegram_message_id', $replyMessageId)
+            ->whereNull('response_note')
+            ->where(function ($q): void {
+                $q->where(function ($q2): void {
+                    $q2->where('completed', true)->where('delayed', true);
+                })->orWhere('completed', false);
+            })
+            ->first();
+
+        if ($record === null || $record->telegram_user_id !== $fromId) {
+            return;
+        }
+
+        $record->update(['response_note' => $text]);
+
+        if ($record->completed) {
+            $line = $this->teethDelayedLineWithReason($record->answered_at, $this->phaseSuffix($record->phase), $text);
+        } else {
+            $line = $this->teethNoLineWithReasonFromRecord($record, $text);
+        }
+
+        try {
+            TelegramBotService::editMessageText(
+                $line,
+                $chatId,
+                $replyMessageId,
+                [
+                    'reply_markup' => json_encode(['inline_keyboard' => []], JSON_THROW_ON_ERROR),
+                ]
+            );
+        } catch (Throwable) {
+            //
+        }
+
+        try {
+            TelegramBotService::deleteMessage($chatId, $userMessageId);
+        } catch (Throwable) {
+            //
+        }
+    }
+
+    private function teethYesLine(Carbon $answeredAt, string $phaseSuffix, bool $delayed, bool $withPencilOnDelayed): string
+    {
+        $dateStr = $answeredAt->format('d/m/Y');
+        if (! $delayed) {
+            return '✅ '.$dateStr.' te has lavado los dientes'.$phaseSuffix.' 🦷';
+        }
+
+        $prefix = $withPencilOnDelayed ? '✏️⏰ ' : '⏰ ';
+
+        return $prefix.$dateStr.' te has lavado los dientes'.$phaseSuffix.' (con retraso) 🦷';
+    }
+
+    private function teethDelayedLineWithReason(Carbon $answeredAt, string $phaseSuffix, string $reason): string
+    {
+        $dateStr = $answeredAt->format('d/m/Y');
+        $base = '⏰ '.$dateStr.' te has lavado los dientes'.$phaseSuffix.' (con retraso) 🦷';
+
+        return $base.' — '.$reason;
+    }
+
+    private function noAnswerLineWithPencil(TeethPrompt $prompt, string $phaseSuffix): string
+    {
+        return '✏️❌ '.$prompt->prompt_sent_at->format('d/m/Y').' no te has lavado los dientes'.$phaseSuffix;
+    }
+
+    private function teethNoLineWithReasonFromRecord(TeethCleaning $record, string $reason): string
+    {
+        $phaseSuffix = $this->phaseSuffix($record->phase);
+        $base = '❌ '.$record->prompt_sent_at->format('d/m/Y').' no te has lavado los dientes'.$phaseSuffix;
+
+        return $base.' — '.$reason;
     }
 
     private function phaseSuffix(?string $phase): string
