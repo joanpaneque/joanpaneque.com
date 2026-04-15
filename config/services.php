@@ -53,4 +53,11 @@ return [
         'log_update_keys' => env('TELEGRAM_LOG_UPDATE_KEYS', false),
     ],
 
+    /*
+    | Values shown on /meta-privacy (Meta / Instagram Graph API policy page).
+    */
+    'meta' => [
+        'privacy_controller' => env('META_PRIVACY_CONTROLLER'),
+    ],
+
 ];

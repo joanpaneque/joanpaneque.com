@@ -9,6 +9,11 @@ Route::get('/', function () {
     return Inertia::render('Welcome');
 });
 
+Route::view('/meta-privacy', 'meta-privacy', [
+    'controllerName' => config('services.meta.privacy_controller') ?: config('app.name'),
+    'lastUpdated' => 'April 15, 2026',
+])->name('meta.privacy');
+
 Route::get('/personal/login', [PersonalController::class, 'showLogin'])->name('personal.login');
 Route::post('/personal/login', [PersonalController::class, 'login'])->name('personal.login.store');
 
