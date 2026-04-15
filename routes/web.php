@@ -14,6 +14,14 @@ Route::view('/meta-privacy', 'meta-privacy', [
     'lastUpdated' => 'April 15, 2026',
 ])->name('meta.privacy');
 
+Route::view('/meta-data', 'meta-data', [
+    'lastUpdated' => 'April 15, 2026',
+])->name('meta.data-deletion');
+
+Route::post('/meta-data', function () {
+    return redirect()->route('meta.data-deletion')->with('meta_data_submitted', true);
+})->name('meta.data-deletion.store');
+
 Route::get('/personal/login', [PersonalController::class, 'showLogin'])->name('personal.login');
 Route::post('/personal/login', [PersonalController::class, 'login'])->name('personal.login.store');
 
