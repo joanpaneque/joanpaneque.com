@@ -75,6 +75,13 @@
             font-size: 1.02rem;
             color: var(--ink);
         }
+        .footer-links {
+            margin-top: 2rem;
+            padding-top: 1.25rem;
+            border-top: 1px solid var(--rule);
+            font-size: 0.875rem;
+            color: var(--muted);
+        }
     </style>
 </head>
 <body>
@@ -125,6 +132,10 @@
             <h2>6. Third parties</h2>
             <p>
                 We do not sell or share data with third parties. Data flows only between the Application&rsquo;s servers and Meta&rsquo;s official infrastructure.
+            </p>
+
+            <p class="footer-links">
+                <a href="{{ route('meta.terms') }}">Terms of service</a> &middot; <a href="{{ route('meta.data-deletion') }}">Data deletion</a>
             </p>
         </article>
     </div>

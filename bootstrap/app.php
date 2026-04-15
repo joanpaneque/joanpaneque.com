@@ -16,6 +16,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->redirectGuestsTo('/personal/login');
         $middleware->validateCsrfTokens(except: [
             'meta-privacy',
+            'meta-terms',
             'meta-data',
         ]);
         $middleware->web(append: [

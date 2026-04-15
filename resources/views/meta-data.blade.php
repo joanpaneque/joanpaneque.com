@@ -197,7 +197,7 @@
             </ul>
 
             <p class="footer-links">
-                More information: <a href="{{ route('meta.privacy') }}">Privacy policy</a>
+                More information: <a href="{{ route('meta.privacy') }}">Privacy policy</a> &middot; <a href="{{ route('meta.terms') }}">Terms of service</a>
             </p>
         </article>
     </div>

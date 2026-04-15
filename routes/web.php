@@ -14,6 +14,10 @@ Route::view('/meta-privacy', 'meta-privacy', [
     'lastUpdated' => 'April 15, 2026',
 ])->name('meta.privacy');
 
+Route::view('/meta-terms', 'meta-terms', [
+    'lastUpdated' => 'April 15, 2026',
+])->name('meta.terms');
+
 Route::view('/meta-data', 'meta-data', [
     'lastUpdated' => 'April 15, 2026',
 ])->name('meta.data-deletion');
