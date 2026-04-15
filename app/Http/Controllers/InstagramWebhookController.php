@@ -14,7 +14,7 @@ class InstagramWebhookController extends Controller
      *
      * @see https://developers.facebook.com/docs/graph-api/webhooks/getting-started
      */
-    public function __invoke(Request $request): SymfonyResponse
+    public function webhook(Request $request): SymfonyResponse
     {
         if ($request->isMethod('GET')) {
             return $this->verifySubscription($request);

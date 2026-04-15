@@ -10,5 +10,5 @@ Route::post('/book', [BookingController::class, 'book']);
 
 Route::post('/telegram/webhook', TelegramWebhookController::class)->name('telegram.webhook');
 
-Route::match(['get', 'post'], '/instagram/webhook', InstagramWebhookController::class)
+Route::match(['get', 'post'], '/instagram/webhook', [InstagramWebhookController::class, 'webhook'])
     ->name('instagram.webhook');
