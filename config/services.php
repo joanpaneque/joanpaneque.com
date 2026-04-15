@@ -60,4 +60,14 @@ return [
         'privacy_controller' => env('META_PRIVACY_CONTROLLER'),
     ],
 
+    /*
+    | Instagram / Meta webhooks (comments, messaging, etc.)
+    | App secret: App Dashboard → Settings → Basic → App secret
+    */
+    'instagram' => [
+        'webhook_verify_token' => env('INSTAGRAM_WEBHOOK_VERIFY_TOKEN'),
+        'app_secret' => env('META_APP_SECRET'),
+        'log_payload' => env('INSTAGRAM_WEBHOOK_LOG_PAYLOAD', false),
+    ],
+
 ];
