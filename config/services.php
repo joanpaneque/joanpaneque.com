@@ -67,6 +67,9 @@ return [
     'instagram' => [
         'webhook_verify_token' => env('INSTAGRAM_WEBHOOK_VERIFY_TOKEN'),
         'app_secret' => env('META_APP_SECRET'),
+        /** Log every incoming webhook (method, IP, verification hints or POST meta). */
+        'log_requests' => env('INSTAGRAM_WEBHOOK_LOG_REQUESTS', true),
+        /** Also log full JSON body (verbose). */
         'log_payload' => env('INSTAGRAM_WEBHOOK_LOG_PAYLOAD', false),
     ],
 
