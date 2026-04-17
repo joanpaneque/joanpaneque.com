@@ -74,11 +74,10 @@ class InstagramWebhookController extends Controller
             && is_string($expected) && $expected !== ''
             && is_string($token) && hash_equals($expected, $token)
             && is_string($challenge) && $challenge !== '') {
-            if (config('services.instagram.log_requests')) {
-                Log::info('Instagram webhook: verification succeeded (challenge returned)');
-            }
-
-            return response($challenge, Response::HTTP_OK)->header('Content-Type', 'text/plain');
+            return $this->respondWithLog(
+                response($challenge, Response::HTTP_OK)->header('Content-Type', 'text/plain'),
+                'subscription_verify_ok',
+            );
         }
 
         Log::warning('Instagram webhook: verification failed or misconfigured', [
@@ -86,7 +85,10 @@ class InstagramWebhookController extends Controller
             'has_challenge' => is_string($challenge) && $challenge !== '',
         ]);
 
-        return response('Forbidden', Response::HTTP_FORBIDDEN);
+        return $this->respondWithLog(
+            response('Forbidden', Response::HTTP_FORBIDDEN),
+            'subscription_verify_forbidden',
+        );
     }
 
     private function handleEvent(Request $request): SymfonyResponse
@@ -99,7 +101,10 @@ class InstagramWebhookController extends Controller
                     'content_length' => strlen($request->getContent()),
                 ]);
 
-                return response('Forbidden', Response::HTTP_FORBIDDEN);
+                return $this->respondWithLog(
+                    response('Forbidden', Response::HTTP_FORBIDDEN),
+                    'invalid_signature',
+                );
             }
         }
 
@@ -120,7 +125,21 @@ class InstagramWebhookController extends Controller
         }
 
         // Acknowledge immediately; process async later if needed.
-        return response()->noContent();
+        return $this->respondWithLog(response()->noContent(), 'event_acknowledged');
+    }
+
+    private function respondWithLog(SymfonyResponse $response, string $context): SymfonyResponse
+    {
+        if (config('services.instagram.log_requests')) {
+            Log::info('Instagram webhook: outgoing response', [
+                'context' => $context,
+                'status' => $response->getStatusCode(),
+                'content_type' => $response->headers->get('Content-Type'),
+                'content_length' => strlen($response->getContent()),
+            ]);
+        }
+
+        return $response;
     }
 
     private function signatureValid(string $rawBody, string $appSecret, string $headerValue): bool
