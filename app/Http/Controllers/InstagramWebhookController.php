@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\InstagramIaCommentAutomation;
 use App\Services\InstagramInboundMessaging;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -125,6 +126,7 @@ class InstagramWebhookController extends Controller
             Log::info('Instagram webhook: full payload', ['payload' => $payload]);
         }
 
+        app(InstagramIaCommentAutomation::class)->handle($payload);
         app(InstagramInboundMessaging::class)->maybeAutoReplyToDirectMessages($payload);
 
         return $this->respondWithLog(response()->noContent(), 'event_acknowledged');
