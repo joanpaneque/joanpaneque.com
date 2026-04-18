@@ -67,10 +67,21 @@ return [
     'instagram' => [
         'webhook_verify_token' => env('INSTAGRAM_WEBHOOK_VERIFY_TOKEN'),
         'app_secret' => env('META_APP_SECRET'),
+        /** Page or User token from Meta (API con inicio de sesión Instagram / generador del panel). */
+        'access_token' => env('INSTAGRAM_ACCESS_TOKEN'),
+        /** Instagram professional account id (Graph), ej. 1784140… del panel “Generar identificador”. */
+        'business_account_id' => env('INSTAGRAM_BUSINESS_ACCOUNT_ID'),
+        /** graph.facebook.com (tokens EAA… página/usuario). */
+        'graph_api_version' => env('META_GRAPH_API_VERSION', 'v21.0'),
+        /** graph.instagram.com (tokens IGAA… API con inicio de sesión Instagram). */
+        'instagram_api_version' => env('INSTAGRAM_API_VERSION', 'v21.0'),
         /** Log every incoming webhook (method, IP, verification hints or POST meta). */
         'log_requests' => env('INSTAGRAM_WEBHOOK_LOG_REQUESTS', true),
         /** Also log full JSON body (verbose). */
         'log_payload' => env('INSTAGRAM_WEBHOOK_LOG_PAYLOAD', false),
+        /** Responder por DM automáticamente a mensajes entrantes (webhook messaging + token IGAA…). */
+        'auto_reply_dm' => env('INSTAGRAM_AUTO_REPLY_DM', true),
+        'auto_reply_dm_text' => env('INSTAGRAM_AUTO_REPLY_DM_TEXT', 'Hello world'),
     ],
 
 ];
