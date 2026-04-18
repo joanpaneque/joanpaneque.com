@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\InstagramDirectMessage;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -115,12 +116,19 @@ class InstagramIaCommentAutomation
             Log::warning('Instagram IA comentario: falló respuesta pública', ['comment_id' => $commentId]);
         }
 
-        if (! $this->sendDmGenericWithWebUrlButton($token, $senderId)) {
+        $dmSend = $this->sendDmGenericWithWebUrlButton($token, $senderId);
+        if (! $dmSend['ok']) {
             Log::warning('Instagram IA comentario: falló DM con botón', [
                 'comment_id' => $commentId,
                 'recipient_prefix' => mb_substr($senderId, 0, 8).'…',
             ]);
         } else {
+            InstagramDirectMessage::query()->create([
+                'peer_ig_user_id' => $senderId,
+                'direction' => InstagramDirectMessage::DIRECTION_OUTBOUND,
+                'body' => self::DM_TITLE,
+                'meta_message_id' => $dmSend['message_id'],
+            ]);
             Log::info('Instagram IA comentario: flujo completado', ['comment_id' => $commentId]);
         }
     }
@@ -148,12 +156,15 @@ class InstagramIaCommentAutomation
         return $response->successful();
     }
 
-    private function sendDmGenericWithWebUrlButton(string $token, string $recipientIgsid): bool
+    /**
+     * @return array{ok: bool, message_id: ?string}
+     */
+    private function sendDmGenericWithWebUrlButton(string $token, string $recipientIgsid): array
     {
         if (! $this->tokenIsInstagramApi($token)) {
             Log::warning('Instagram IA comentario: la plantilla con botón requiere token Instagram API (IGAA…)');
 
-            return false;
+            return ['ok' => false, 'message_id' => null];
         }
 
         $v = ltrim(self::INSTAGRAM_API_VERSION, '/');
@@ -193,9 +204,16 @@ class InstagramIaCommentAutomation
                 'status' => $response->status(),
                 'body' => mb_substr($response->body(), 0, 400),
             ]);
+
+            return ['ok' => false, 'message_id' => null];
         }
 
-        return $response->successful();
+        $json = $response->json();
+        $messageId = is_array($json) && isset($json['message_id']) && is_string($json['message_id'])
+            ? $json['message_id']
+            : null;
+
+        return ['ok' => true, 'message_id' => $messageId];
     }
 
     private function normalizedAccessToken(): ?string

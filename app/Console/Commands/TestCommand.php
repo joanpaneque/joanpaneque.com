@@ -13,14 +13,14 @@ class TestCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'app:test-command {grace_period_minutes=15 : Minutos de periodo de gracia (a tiempo vs retraso)}';
+    protected $signature = 'app:test-teeth {grace_period_minutes=15 : Minutos de periodo de gracia (a tiempo vs retraso)}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Envía la pregunta de lavado de dientes (ToothFairy + webhook para respuestas)';
+    protected $description = 'ToothFairy: pregunta de lavado de dientes (Telegram + webhook)';
 
     /**
      * Execute the console command.

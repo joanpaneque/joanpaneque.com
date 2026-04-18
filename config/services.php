@@ -79,9 +79,21 @@ return [
         'log_requests' => env('INSTAGRAM_WEBHOOK_LOG_REQUESTS', true),
         /** Also log full JSON body (verbose). */
         'log_payload' => env('INSTAGRAM_WEBHOOK_LOG_PAYLOAD', false),
-        /** Responder por DM automáticamente a mensajes entrantes (webhook messaging + token IGAA…). */
+        /** Si true, responde a DMs con IA (OpenRouter) usando el historial en BD. */
         'auto_reply_dm' => env('INSTAGRAM_AUTO_REPLY_DM', true),
-        'auto_reply_dm_text' => env('INSTAGRAM_AUTO_REPLY_DM_TEXT', 'Hello world'),
+    ],
+
+    /*
+    | OpenRouter (API compatible con OpenAI: /v1/chat/completions).
+    */
+    'openrouter' => [
+        'api_key' => env('OPENROUTER_API_KEY'),
+        'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
+        'default_model' => env('OPENROUTER_MODEL', 'openai/gpt-4o-mini'),
+        /** Opcional: URL pública de tu app (OpenRouter la usa en rankings). */
+        'http_referer' => env('OPENROUTER_HTTP_REFERER'),
+        'app_title' => env('OPENROUTER_APP_TITLE', env('APP_NAME', 'Laravel')),
+        'timeout' => env('OPENROUTER_TIMEOUT', 120),
     ],
 
 ];
