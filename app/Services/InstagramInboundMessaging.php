@@ -6,18 +6,11 @@ use App\Models\InstagramDirectMessage;
 use App\Models\InstagramKeywordRule;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
 
 class InstagramInboundMessaging
 {
-    private const DM_AI_MODEL = 'openai/gpt-oss-120b';
-
-    private const DM_HISTORY_LIMIT = 7;
-
-    private const DM_SYSTEM_PROMPT = 'Eres el asistente de esta cuenta de Instagram. Responde en el mismo idioma que el usuario, de forma natural y breve.';
-
     /**
-     * Webhook messaging: guarda mensajes (entrantes, eco salientes) y opcionalmente responde con IA.
+     * Webhook messaging: guarda mensajes (entrantes, eco salientes) y respuestas de fase 2 (Nebula / quick replies).
      *
      * @param  array<string, mixed>  $payload
      */
@@ -123,42 +116,6 @@ class InstagramInboundMessaging
         if ($this->tryPhase2ConfiguredReply($sender, $text, $quickReplyPayload, $token)) {
             return;
         }
-
-        if (! config('services.instagram.auto_reply_dm')) {
-            return;
-        }
-
-        $history = InstagramDirectMessage::recentForPeer($sender, self::DM_HISTORY_LIMIT);
-        $openAiMessages = [['role' => 'system', 'content' => self::DM_SYSTEM_PROMPT]];
-        foreach ($history as $row) {
-            $openAiMessages[] = [
-                'role' => $row->direction === InstagramDirectMessage::DIRECTION_INBOUND ? 'user' : 'assistant',
-                'content' => $row->body,
-            ];
-        }
-
-        $replyText = null;
-        try {
-            $data = OpenRouter::chatCompletion($openAiMessages, self::DM_AI_MODEL, [
-                'reasoning' => ['effort' => 'low'],
-            ]);
-            $replyText = $data['choices'][0]['message']['content'] ?? null;
-            $replyText = is_string($replyText) ? trim($replyText) : null;
-        } catch (RuntimeException $e) {
-            Log::warning('Instagram DM: OpenRouter falló', ['message' => $e->getMessage()]);
-        }
-
-        if ($replyText === null || $replyText === '') {
-            return;
-        }
-
-        $outMid = $this->sendDirectMessage($token, $sender, $replyText);
-        InstagramDirectMessage::query()->create([
-            'peer_ig_user_id' => $sender,
-            'direction' => InstagramDirectMessage::DIRECTION_OUTBOUND,
-            'body' => $replyText,
-            'meta_message_id' => $outMid,
-        ]);
     }
 
     /**

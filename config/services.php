@@ -78,8 +78,6 @@ return [
         'log_requests' => env('INSTAGRAM_WEBHOOK_LOG_REQUESTS', true),
         /** Also log full JSON body (verbose). */
         'log_payload' => env('INSTAGRAM_WEBHOOK_LOG_PAYLOAD', false),
-        /** Si true, responde a DMs con IA (OpenRouter) usando el historial en BD. */
-        'auto_reply_dm' => env('INSTAGRAM_AUTO_REPLY_DM', true),
     ],
 
     /*
