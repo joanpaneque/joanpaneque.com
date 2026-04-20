@@ -89,6 +89,10 @@ return [
         'api_key' => env('OPENROUTER_API_KEY'),
         'base_url' => env('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1'),
         'default_model' => env('OPENROUTER_MODEL', 'openai/gpt-4o-mini'),
+        /** Embeddings (keywords y comentarios) vía POST /embeddings. */
+        'embedding_model' => env('OPENROUTER_EMBEDDING_MODEL', 'openai/text-embedding-3-small'),
+        /** Clasificador: ¿el comentario pretendía activar una de las keywords candidatas? */
+        'keyword_intent_model' => env('OPENROUTER_KEYWORD_INTENT_MODEL', 'openai/gpt-4o-mini'),
         /** Opcional: URL pública de tu app (OpenRouter la usa en rankings). */
         'http_referer' => env('OPENROUTER_HTTP_REFERER'),
         'app_title' => env('OPENROUTER_APP_TITLE', env('APP_NAME', 'Laravel')),

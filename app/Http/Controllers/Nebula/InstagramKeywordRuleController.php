@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Nebula;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\InstagramKeywordRuleRequest;
 use App\Models\InstagramKeywordRule;
+use App\Services\KeywordEmbeddingSync;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -36,13 +38,26 @@ class InstagramKeywordRuleController extends Controller
         ]);
     }
 
-    public function store(InstagramKeywordRuleRequest $request): RedirectResponse
+    public function store(InstagramKeywordRuleRequest $request, KeywordEmbeddingSync $embeddingSync): RedirectResponse
     {
         $data = $request->validated();
         if (! array_key_exists('is_active', $data)) {
             $data['is_active'] = true;
         }
-        InstagramKeywordRule::query()->create($data);
+        $rule = InstagramKeywordRule::query()->create($data);
+
+        try {
+            $embeddingSync->sync($rule);
+        } catch (\Throwable $e) {
+            Log::error('KeywordEmbeddingSync tras crear regla', [
+                'rule_id' => $rule->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return redirect()->route('nebula.instagram-rules.index')
+                ->with('success', 'Regla creada.')
+                ->with('warning', 'Los embeddings no se generaron: '.$e->getMessage());
+        }
 
         return redirect()->route('nebula.instagram-rules.index')
             ->with('success', 'Regla creada.');
@@ -55,10 +70,24 @@ class InstagramKeywordRuleController extends Controller
         ]);
     }
 
-    public function update(InstagramKeywordRuleRequest $request, InstagramKeywordRule $rule): RedirectResponse
+    public function update(InstagramKeywordRuleRequest $request, InstagramKeywordRule $rule, KeywordEmbeddingSync $embeddingSync): RedirectResponse
     {
         $data = $request->validated();
         $rule->update($data);
+        $rule->refresh();
+
+        try {
+            $embeddingSync->sync($rule);
+        } catch (\Throwable $e) {
+            Log::error('KeywordEmbeddingSync tras actualizar regla', [
+                'rule_id' => $rule->id,
+                'message' => $e->getMessage(),
+            ]);
+
+            return redirect()->route('nebula.instagram-rules.index')
+                ->with('success', 'Regla actualizada.')
+                ->with('warning', 'Los embeddings no se regeneraron: '.$e->getMessage());
+        }
 
         return redirect()->route('nebula.instagram-rules.index')
             ->with('success', 'Regla actualizada.');

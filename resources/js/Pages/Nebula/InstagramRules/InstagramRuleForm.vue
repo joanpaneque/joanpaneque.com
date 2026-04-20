@@ -60,12 +60,15 @@ function removePhase2(form, i) {
                 <input v-model="form.is_active" type="checkbox" class="rounded border-neutral-600 bg-neutral-900">
                 Activa
             </label>
+            <p class="text-xs text-neutral-600">
+                Al guardar se generan embeddings de cada keyword (OpenRouter) para emparejar comentarios por similitud.
+            </p>
         </section>
 
         <section class="space-y-3">
             <h2 class="text-sm font-medium text-neutral-400">Comentarios</h2>
             <p class="text-xs text-neutral-500">
-                El comentario debe coincidir exactamente con una keyword (sin distinguir mayúsculas). No puede haber la misma keyword en dos reglas distintas.
+                Si el texto del comentario contiene la keyword (sin distinguir mayúsculas), se aplica la regla. Puede haber más texto o emojis. La misma keyword no puede repetirse en otra regla.
             </p>
             <div class="space-y-2">
                 <div v-for="(_, i) in form.keywords" :key="'kw-' + i" class="flex gap-2">

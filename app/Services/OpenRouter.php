@@ -13,6 +13,41 @@ use Throwable;
  */
 final class OpenRouter
 {
+    /**
+     * Embeddings (OpenAI-compatible POST /v1/embeddings).
+     *
+     * @return list<float>
+     */
+    public static function createEmbedding(string $input): array
+    {
+        $model = (string) config('services.openrouter.embedding_model', 'openai/text-embedding-3-small');
+        $body = [
+            'model' => $model,
+            'input' => $input,
+        ];
+
+        $json = self::postJson('embeddings', $body);
+        $data = $json['data'] ?? null;
+        if (! is_array($data) || ! isset($data[0]) || ! is_array($data[0])) {
+            throw new RuntimeException('OpenRouter embeddings: respuesta sin data[0].');
+        }
+        $embedding = $data[0]['embedding'] ?? null;
+        if (! is_array($embedding)) {
+            throw new RuntimeException('OpenRouter embeddings: falta el vector embedding.');
+        }
+        $out = [];
+        foreach ($embedding as $x) {
+            if (is_int($x) || is_float($x)) {
+                $out[] = (float) $x;
+            }
+        }
+        if ($out === []) {
+            throw new RuntimeException('OpenRouter embeddings: vector vacío o inválido.');
+        }
+
+        return $out;
+    }
+
     public static function chatCompletion(array $messages, ?string $model = null, array $options = []): array
     {
         $body = array_merge(

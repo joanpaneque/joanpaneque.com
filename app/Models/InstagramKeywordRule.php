@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property array<int, string> $keywords
@@ -44,6 +45,14 @@ class InstagramKeywordRule extends Model
     public function scopeOrdered(Builder $query): Builder
     {
         return $query->orderBy('id');
+    }
+
+    /**
+     * @return HasMany<InstagramKeywordRuleEmbedding, $this>
+     */
+    public function keywordEmbeddings(): HasMany
+    {
+        return $this->hasMany(InstagramKeywordRuleEmbedding::class);
     }
 
     /**

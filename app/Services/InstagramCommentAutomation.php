@@ -4,9 +4,12 @@ namespace App\Services;
 
 use App\Models\InstagramDirectMessage;
 use App\Models\InstagramKeywordRule;
+use App\Models\InstagramKeywordRuleEmbedding;
+use App\Support\VectorSimilarity;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 
 class InstagramCommentAutomation
 {
@@ -14,8 +17,14 @@ class InstagramCommentAutomation
 
     private const FACEBOOK_GRAPH_VERSION = 'v21.0';
 
+    private const TOP_KEYWORD_CANDIDATES = 3;
+
+    public function __construct(
+        private readonly InstagramKeywordCommentIntentClassifier $intentClassifier,
+    ) {}
+
     /**
-     * Comentarios que coinciden con reglas Nebula → respuesta pública + DM opcional con quick replies.
+     * Comentarios → embedding del texto, top-3 keywords por similitud, LLM confirma intención, luego flujo habitual.
      *
      * @param  array<string, mixed>  $payload
      */
@@ -34,11 +43,6 @@ class InstagramCommentAutomation
 
         $ourIgId = config('services.instagram.business_account_id');
         $ourIgId = is_string($ourIgId) ? trim($ourIgId) : '';
-
-        $rules = InstagramKeywordRule::query()->active()->ordered()->get();
-        if ($rules->isEmpty()) {
-            return;
-        }
 
         $entries = $payload['entry'] ?? null;
         if (! is_array($entries)) {
@@ -61,20 +65,20 @@ class InstagramCommentAutomation
                 if (! is_array($value)) {
                     continue;
                 }
-                $this->processCommentChange($value, $rules, $token, $ourIgId);
+                $this->processCommentChange($value, $token, $ourIgId, $payload);
             }
         }
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, InstagramKeywordRule>  $rules
      * @param  array<string, mixed>  $value
+     * @param  array<string, mixed>  $fullWebhookPayload
      */
     private function processCommentChange(
         array $value,
-        $rules,
         string $token,
         string $ourIgId,
+        array $fullWebhookPayload,
     ): void {
         $commentId = $value['id'] ?? null;
         if (! is_string($commentId) || $commentId === '') {
@@ -86,28 +90,75 @@ class InstagramCommentAutomation
         }
 
         $text = isset($value['text']) && is_string($value['text']) ? trim($value['text']) : '';
-        $normalized = $text === '' ? '' : mb_strtolower($text);
 
-        $rule = null;
-        foreach ($rules as $r) {
-            foreach ($r->keywords as $kw) {
-                if (! is_string($kw)) {
-                    continue;
-                }
-                $k = trim($kw);
-                if ($k === '') {
-                    continue;
-                }
-                if ($normalized === mb_strtolower($k)) {
-                    $rule = $r;
+        if ($text === '') {
+            Cache::forget('instagram:comment_rule:'.$commentId);
+            InstagramCommentContinueProcess::continue_process($fullWebhookPayload);
 
-                    break 2;
-                }
-            }
+            return;
         }
 
-        if ($rule === null) {
+        $rows = InstagramKeywordRuleEmbedding::query()
+            ->whereHas('rule', fn ($q) => $q->where('is_active', true))
+            ->with('rule')
+            ->get();
+
+        if ($rows->isEmpty()) {
+            InstagramCommentContinueProcess::continue_process($fullWebhookPayload);
+
+            return;
+        }
+
+        try {
+            $commentEmbedding = OpenRouter::createEmbedding($text);
+        } catch (RuntimeException $e) {
+            Log::warning('Instagram comentario: embedding falló', ['message' => $e->getMessage()]);
             Cache::forget('instagram:comment_rule:'.$commentId);
+            InstagramCommentContinueProcess::continue_process($fullWebhookPayload);
+
+            return;
+        }
+
+        $scored = [];
+        foreach ($rows as $row) {
+            $emb = $row->embedding;
+            if (! is_array($emb) || $emb === []) {
+                continue;
+            }
+            /** @var list<float> $emb */
+            $score = VectorSimilarity::cosineSimilarity($commentEmbedding, $emb);
+            $rid = $row->instagram_keyword_rule_id;
+            if (! is_int($rid)) {
+                continue;
+            }
+            $scored[] = [
+                'rule_id' => $rid,
+                'keyword' => (string) $row->keyword,
+                'score' => $score,
+            ];
+        }
+
+        usort($scored, fn (array $a, array $b) => $b['score'] <=> $a['score']);
+        $top3 = array_slice($scored, 0, self::TOP_KEYWORD_CANDIDATES);
+
+        if ($top3 === []) {
+            InstagramCommentContinueProcess::continue_process($fullWebhookPayload);
+
+            return;
+        }
+
+        $ruleId = $this->intentClassifier->classify($text, $top3);
+
+        if ($ruleId === null) {
+            InstagramCommentContinueProcess::continue_process($fullWebhookPayload);
+
+            return;
+        }
+
+        $rule = InstagramKeywordRule::query()->active()->whereKey($ruleId)->first();
+        if ($rule === null) {
+            Log::warning('Instagram comentario: regla no activa o inexistente', ['rule_id' => $ruleId]);
+            InstagramCommentContinueProcess::continue_process($fullWebhookPayload);
 
             return;
         }
@@ -127,6 +178,15 @@ class InstagramCommentAutomation
             return;
         }
 
+        $this->applyRule($rule, $commentId, $token, $senderId);
+    }
+
+    private function applyRule(
+        InstagramKeywordRule $rule,
+        string $commentId,
+        string $token,
+        string $senderId,
+    ): void {
         $variants = array_values(array_filter($rule->comment_reply_variants, fn ($v) => is_string($v) && trim($v) !== ''));
         if ($variants === []) {
             Cache::forget('instagram:comment_rule:'.$commentId);

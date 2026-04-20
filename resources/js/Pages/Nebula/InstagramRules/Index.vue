@@ -11,6 +11,7 @@ const props = defineProps({
 
 const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success);
+const flashWarning = computed(() => page.props.flash?.warning);
 
 function destroyRule(id) {
     if (!confirm('¿Eliminar esta regla?')) {
@@ -35,6 +36,9 @@ function destroyRule(id) {
         <div class="mx-auto max-w-5xl p-8">
             <p v-if="flashSuccess" class="mb-6 rounded border border-teal-900/50 bg-teal-950/40 px-4 py-2 text-sm text-teal-200">
                 {{ flashSuccess }}
+            </p>
+            <p v-if="flashWarning" class="mb-6 rounded border border-amber-900/50 bg-amber-950/40 px-4 py-2 text-sm text-amber-200">
+                {{ flashWarning }}
             </p>
             <div v-if="!rules.length" class="rounded border border-dashed border-neutral-700 p-12 text-center text-sm text-neutral-500">
                 No hay reglas. Crea una para enlazar keywords con respuestas y DMs.
