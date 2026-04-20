@@ -45,6 +45,6 @@
         <strong>Si scheme es "http" en produccion (HTTPS):</strong> tu servidor esta detras de un proxy. Configura trusted proxies en Laravel o define GOOGLE_REDIRECT_URI explicitamente en .env con https.
     </div>
 
-    <p style="margin-top: 2rem;"><a href="{{ route('admin.google-calendar.index') }}">Volver</a></p>
+    <p style="margin-top: 2rem;"><a href="{{ route('nebula.google-calendar.index') }}">Volver</a></p>
 </body>
 </html>

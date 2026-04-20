@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - Google Calendar</title>
+    <title>Nebula - Google Calendar</title>
     <style>
         body { font-family: system-ui, sans-serif; max-width: 500px; margin: 4rem auto; padding: 2rem; }
         .success { color: #15803d; background: #f0fdf4; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; }
@@ -20,11 +20,11 @@
     @endif
     @if($connected)
         <p>Calendario conectado.</p>
-        <a href="{{ route('admin.google-calendar.connect') }}" class="btn">Reconectar (revocar y autorizar de nuevo)</a>
+        <a href="{{ route('nebula.google-calendar.connect') }}" class="btn">Reconectar (revocar y autorizar de nuevo)</a>
     @else
         <p>No hay calendario conectado.</p>
-        <a href="{{ route('admin.google-calendar.connect') }}" class="btn">Conectar con Google</a>
+        <a href="{{ route('nebula.google-calendar.connect') }}" class="btn">Conectar con Google</a>
     @endif
-    <p style="margin-top: 1.5rem;"><a href="{{ route('admin.google-calendar.debug') }}" style="font-size: 0.875rem; color: #6b7280;">Diagnostico OAuth</a></p>
+    <p style="margin-top: 1.5rem;"><a href="{{ route('nebula.google-calendar.debug') }}" style="font-size: 0.875rem; color: #6b7280;">Diagnostico OAuth</a></p>
 </body>
 </html>

@@ -3,29 +3,19 @@
 namespace App\Services;
 
 use App\Models\InstagramDirectMessage;
+use App\Models\InstagramKeywordRule;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class InstagramIaCommentAutomation
+class InstagramCommentAutomation
 {
-    /** Comentario exacto (sin distinguir mayúsculas). */
-    private const KEYWORD = 'IA';
-
-    private const PUBLIC_THREAD_REPLY = 'Te ha llegado mi mensaje?';
-
-    private const DM_TITLE = 'Hola mundo';
-
-    private const DM_BUTTON_TITLE = 'Obtener enlace';
-
-    private const DM_BUTTON_URL = 'https://amuletvoice.com';
-
     private const INSTAGRAM_API_VERSION = 'v21.0';
 
     private const FACEBOOK_GRAPH_VERSION = 'v21.0';
 
     /**
-     * Comentario "IA" → respuesta en hilo + DM con botón al enlace.
+     * Comentarios que coinciden con reglas Nebula → respuesta pública + DM opcional con quick replies.
      *
      * @param  array<string, mixed>  $payload
      */
@@ -37,14 +27,18 @@ class InstagramIaCommentAutomation
 
         $token = $this->normalizedAccessToken();
         if ($token === null) {
-            Log::warning('Instagram IA comentario: sin INSTAGRAM_ACCESS_TOKEN');
+            Log::warning('Instagram comentario: sin INSTAGRAM_ACCESS_TOKEN');
 
             return;
         }
 
-        $keywordLower = mb_strtolower(self::KEYWORD);
         $ourIgId = config('services.instagram.business_account_id');
         $ourIgId = is_string($ourIgId) ? trim($ourIgId) : '';
+
+        $rules = InstagramKeywordRule::query()->active()->ordered()->get();
+        if ($rules->isEmpty()) {
+            return;
+        }
 
         $entries = $payload['entry'] ?? null;
         if (! is_array($entries)) {
@@ -67,17 +61,18 @@ class InstagramIaCommentAutomation
                 if (! is_array($value)) {
                     continue;
                 }
-                $this->processCommentChange($value, $keywordLower, $token, $ourIgId);
+                $this->processCommentChange($value, $rules, $token, $ourIgId);
             }
         }
     }
 
     /**
+     * @param  \Illuminate\Support\Collection<int, InstagramKeywordRule>  $rules
      * @param  array<string, mixed>  $value
      */
     private function processCommentChange(
         array $value,
-        string $keywordLower,
+        $rules,
         string $token,
         string $ourIgId,
     ): void {
@@ -86,13 +81,33 @@ class InstagramIaCommentAutomation
             return;
         }
 
-        if (! Cache::add('instagram:ia_comment:'.$commentId, 1, now()->addDay())) {
+        if (! Cache::add('instagram:comment_rule:'.$commentId, 1, now()->addDay())) {
             return;
         }
 
         $text = isset($value['text']) && is_string($value['text']) ? trim($value['text']) : '';
-        if (mb_strtolower($text) !== $keywordLower) {
-            Cache::forget('instagram:ia_comment:'.$commentId);
+        $normalized = $text === '' ? '' : mb_strtolower($text);
+
+        $rule = null;
+        foreach ($rules as $r) {
+            foreach ($r->keywords as $kw) {
+                if (! is_string($kw)) {
+                    continue;
+                }
+                $k = trim($kw);
+                if ($k === '') {
+                    continue;
+                }
+                if ($normalized === mb_strtolower($k)) {
+                    $rule = $r;
+
+                    break 2;
+                }
+            }
+        }
+
+        if ($rule === null) {
+            Cache::forget('instagram:comment_rule:'.$commentId);
 
             return;
         }
@@ -100,36 +115,63 @@ class InstagramIaCommentAutomation
         $from = $value['from'] ?? null;
         $senderId = is_array($from) && isset($from['id']) && is_string($from['id']) ? $from['id'] : null;
         if ($senderId === null || $senderId === '') {
-            Log::warning('Instagram IA comentario: sin from.id', ['comment_id' => $commentId]);
-            Cache::forget('instagram:ia_comment:'.$commentId);
+            Log::warning('Instagram comentario: sin from.id', ['comment_id' => $commentId]);
+            Cache::forget('instagram:comment_rule:'.$commentId);
 
             return;
         }
 
         if ($ourIgId !== '' && $senderId === $ourIgId) {
-            Cache::forget('instagram:ia_comment:'.$commentId);
+            Cache::forget('instagram:comment_rule:'.$commentId);
 
             return;
         }
 
-        if (! $this->replyToComment($token, $commentId, self::PUBLIC_THREAD_REPLY)) {
-            Log::warning('Instagram IA comentario: falló respuesta pública', ['comment_id' => $commentId]);
+        $variants = array_values(array_filter($rule->comment_reply_variants, fn ($v) => is_string($v) && trim($v) !== ''));
+        if ($variants === []) {
+            Cache::forget('instagram:comment_rule:'.$commentId);
+
+            return;
         }
 
-        $dmSend = $this->sendDmGenericWithWebUrlButton($token, $senderId);
+        $publicReply = $variants[array_rand($variants)];
+
+        if (! $this->replyToComment($token, $commentId, $publicReply)) {
+            Log::warning('Instagram comentario: falló respuesta pública', ['comment_id' => $commentId, 'rule_id' => $rule->id]);
+        }
+
+        if (! $rule->hasDmAutomation()) {
+            Log::info('Instagram comentario: regla sin DM', ['comment_id' => $commentId, 'rule_id' => $rule->id]);
+
+            return;
+        }
+
+        if (! $this->tokenIsInstagramApi($token)) {
+            Log::warning('Instagram comentario: quick replies requieren token Instagram API (IGAA…)', ['rule_id' => $rule->id]);
+
+            return;
+        }
+
+        $dmSend = $this->sendDmWithQuickReplies(
+            $token,
+            $senderId,
+            (string) $rule->dm_phase1_text,
+            $rule->dm_quick_replies ?? [],
+        );
         if (! $dmSend['ok']) {
-            Log::warning('Instagram IA comentario: falló DM con botón', [
+            Log::warning('Instagram comentario: falló DM fase 1', [
                 'comment_id' => $commentId,
+                'rule_id' => $rule->id,
                 'recipient_prefix' => mb_substr($senderId, 0, 8).'…',
             ]);
         } else {
             InstagramDirectMessage::query()->create([
                 'peer_ig_user_id' => $senderId,
                 'direction' => InstagramDirectMessage::DIRECTION_OUTBOUND,
-                'body' => self::DM_TITLE,
+                'body' => '[Fase 1] '.mb_substr((string) $rule->dm_phase1_text, 0, 2000),
                 'meta_message_id' => $dmSend['message_id'],
             ]);
-            Log::info('Instagram IA comentario: flujo completado', ['comment_id' => $commentId]);
+            Log::info('Instagram comentario: DM fase 1 enviado', ['comment_id' => $commentId, 'rule_id' => $rule->id]);
         }
     }
 
@@ -157,13 +199,35 @@ class InstagramIaCommentAutomation
     }
 
     /**
+     * @param  array<int, array{title?: mixed, payload?: mixed}>  $quickReplies
      * @return array{ok: bool, message_id: ?string}
      */
-    private function sendDmGenericWithWebUrlButton(string $token, string $recipientIgsid): array
+    private function sendDmWithQuickReplies(string $token, string $recipientIgsid, string $bodyText, array $quickReplies): array
     {
-        if (! $this->tokenIsInstagramApi($token)) {
-            Log::warning('Instagram IA comentario: la plantilla con botón requiere token Instagram API (IGAA…)');
+        $built = [];
+        foreach ($quickReplies as $qr) {
+            if (! is_array($qr)) {
+                continue;
+            }
+            $title = isset($qr['title']) && is_string($qr['title']) ? trim($qr['title']) : '';
+            if ($title === '') {
+                continue;
+            }
+            $payload = isset($qr['payload']) && is_string($qr['payload']) ? trim($qr['payload']) : $title;
+            if ($payload === '') {
+                $payload = $title;
+            }
+            $built[] = [
+                'content_type' => 'text',
+                'title' => mb_substr($title, 0, 20),
+                'payload' => mb_substr($payload, 0, 1000),
+            ];
+            if (count($built) >= 13) {
+                break;
+            }
+        }
 
+        if ($built === []) {
             return ['ok' => false, 'message_id' => null];
         }
 
@@ -173,24 +237,8 @@ class InstagramIaCommentAutomation
         $payload = [
             'recipient' => ['id' => $recipientIgsid],
             'message' => [
-                'attachment' => [
-                    'type' => 'template',
-                    'payload' => [
-                        'template_type' => 'generic',
-                        'elements' => [
-                            [
-                                'title' => mb_substr(self::DM_TITLE, 0, 80),
-                                'buttons' => [
-                                    [
-                                        'type' => 'web_url',
-                                        'url' => self::DM_BUTTON_URL,
-                                        'title' => mb_substr(self::DM_BUTTON_TITLE, 0, 20),
-                                    ],
-                                ],
-                            ],
-                        ],
-                    ],
-                ],
+                'text' => $bodyText,
+                'quick_replies' => $built,
             ],
         ];
 
@@ -200,9 +248,9 @@ class InstagramIaCommentAutomation
             ->post($url, $payload);
 
         if (! $response->successful()) {
-            Log::warning('Instagram IA comentario: respuesta DM', [
+            Log::warning('Instagram comentario: API DM quick_replies', [
                 'status' => $response->status(),
-                'body' => mb_substr($response->body(), 0, 400),
+                'body' => mb_substr($response->body(), 0, 500),
             ]);
 
             return ['ok' => false, 'message_id' => null];

@@ -13,6 +13,6 @@
 <body>
     <h1>Error de conexion</h1>
     <div class="error">{{ $message }}</div>
-    <p><a href="{{ route('admin.google-calendar.connect') }}">Volver a intentar</a></p>
+    <p><a href="{{ route('nebula.google-calendar.connect') }}">Volver a intentar</a></p>
 </body>
 </html>

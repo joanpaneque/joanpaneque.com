@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\InstagramDirectMessage;
+use App\Models\InstagramKeywordRule;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -77,6 +78,13 @@ class InstagramInboundMessaging
 
         $text = isset($message['text']) && is_string($message['text']) ? trim($message['text']) : '';
         $mid = isset($message['mid']) && is_string($message['mid']) ? $message['mid'] : null;
+        $quickReplyPayload = null;
+        if (isset($message['quick_reply']) && is_array($message['quick_reply'])) {
+            $p = $message['quick_reply']['payload'] ?? null;
+            if (is_string($p) && trim($p) !== '') {
+                $quickReplyPayload = trim($p);
+            }
+        }
 
         if (! empty($message['is_echo'])) {
             if ($recipient !== null && $text !== '' && ($mid === null || ! InstagramDirectMessage::query()->where('meta_message_id', $mid)->exists())) {
@@ -91,9 +99,15 @@ class InstagramInboundMessaging
             return;
         }
 
-        if ($sender === null || $text === '') {
+        if ($sender === null) {
             return;
         }
+
+        if ($text === '' && $quickReplyPayload === null) {
+            return;
+        }
+
+        $storedInboundBody = $text !== '' ? $text : (string) $quickReplyPayload;
 
         if ($mid !== null && InstagramDirectMessage::query()->where('meta_message_id', $mid)->exists()) {
             return;
@@ -102,9 +116,13 @@ class InstagramInboundMessaging
         InstagramDirectMessage::query()->create([
             'peer_ig_user_id' => $sender,
             'direction' => InstagramDirectMessage::DIRECTION_INBOUND,
-            'body' => $text,
+            'body' => $storedInboundBody,
             'meta_message_id' => $mid,
         ]);
+
+        if ($this->tryPhase2ConfiguredReply($sender, $text, $quickReplyPayload, $token)) {
+            return;
+        }
 
         if (! config('services.instagram.auto_reply_dm')) {
             return;
@@ -141,6 +159,69 @@ class InstagramInboundMessaging
             'body' => $replyText,
             'meta_message_id' => $outMid,
         ]);
+    }
+
+    /**
+     * Respuesta fase 2 (Nebula): quick reply o texto coincidente con botón/payload de una regla.
+     */
+    private function tryPhase2ConfiguredReply(
+        string $senderIgsid,
+        string $text,
+        ?string $quickReplyPayload,
+        string $token,
+    ): bool {
+        $rules = InstagramKeywordRule::query()->active()->ordered()->get();
+        foreach ($rules as $rule) {
+            if (! $rule->hasDmAutomation()) {
+                continue;
+            }
+            $qrs = $rule->dm_quick_replies;
+            if (! is_array($qrs)) {
+                continue;
+            }
+            foreach ($qrs as $qr) {
+                if (! is_array($qr)) {
+                    continue;
+                }
+                $title = isset($qr['title']) && is_string($qr['title']) ? trim($qr['title']) : '';
+                $payload = isset($qr['payload']) && is_string($qr['payload']) ? trim($qr['payload']) : '';
+                if ($payload === '' && $title !== '') {
+                    $payload = $title;
+                }
+                $matched = false;
+                if ($quickReplyPayload !== null && $payload !== '' && $quickReplyPayload === $payload) {
+                    $matched = true;
+                }
+                if (! $matched && $text !== '' && $title !== '' && mb_strtolower($text) === mb_strtolower($title)) {
+                    $matched = true;
+                }
+                if (! $matched && $text !== '' && $payload !== '' && $text === $payload) {
+                    $matched = true;
+                }
+                if (! $matched) {
+                    continue;
+                }
+                $variants = array_values(array_filter(
+                    $rule->dm_phase2_reply_variants ?? [],
+                    fn ($v) => is_string($v) && trim($v) !== '',
+                ));
+                if ($variants === []) {
+                    continue;
+                }
+                $replyText = $variants[array_rand($variants)];
+                $outMid = $this->sendDirectMessage($token, $senderIgsid, $replyText);
+                InstagramDirectMessage::query()->create([
+                    'peer_ig_user_id' => $senderIgsid,
+                    'direction' => InstagramDirectMessage::DIRECTION_OUTBOUND,
+                    'body' => $replyText,
+                    'meta_message_id' => $outMid,
+                ]);
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function sendDirectMessage(string $token, string $recipientIgsid, string $text): ?string
