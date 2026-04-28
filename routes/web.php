@@ -1,8 +1,8 @@
 <?php
 
-use App\Http\Controllers\Admin\AdminAuthController;
-use App\Http\Controllers\Admin\AutomationsPanelController;
-use App\Http\Controllers\Admin\GoogleCalendarController;
+use App\Http\Controllers\Nebula\GoogleCalendarController;
+use App\Http\Controllers\Nebula\InstagramKeywordRuleController;
+use App\Http\Controllers\NebulaController;
 use App\Http\Controllers\PersonalController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -10,10 +10,6 @@ use Inertia\Inertia;
 Route::get('/', function () {
     return Inertia::render('Welcome');
 });
-
-Route::get('/eisenhower', function () {
-    return Inertia::render('Eisenhower');
-})->name('eisenhower');
 
 Route::view('/meta-privacy', 'meta-privacy', [
     'controllerName' => config('services.meta.privacy_controller') ?: config('app.name'),
@@ -38,20 +34,22 @@ Route::post('/personal/login', [PersonalController::class, 'login'])->name('pers
 Route::middleware('auth')->group(function () {
     Route::get('/personal', [PersonalController::class, 'dashboard'])->name('personal.dashboard');
     Route::post('/personal/logout', [PersonalController::class, 'logout'])->name('personal.logout');
-});
 
-Route::get('/admin/login', [AdminAuthController::class, 'showLogin'])->name('admin.login');
-Route::post('/admin/login', [AdminAuthController::class, 'login'])->name('admin.login.store');
+    Route::prefix('nebula')->name('nebula.')->group(function () {
+        Route::get('/', [NebulaController::class, 'dashboard'])->name('dashboard');
 
-Route::middleware('admin')->group(function () {
-    Route::post('/admin/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
+        Route::get('/instagram-rules', [InstagramKeywordRuleController::class, 'index'])->name('instagram-rules.index');
+        Route::get('/instagram-rules/create', [InstagramKeywordRuleController::class, 'create'])->name('instagram-rules.create');
+        Route::post('/instagram-rules', [InstagramKeywordRuleController::class, 'store'])->name('instagram-rules.store');
+        Route::get('/instagram-rules/{rule}/edit', [InstagramKeywordRuleController::class, 'edit'])->name('instagram-rules.edit');
+        Route::put('/instagram-rules/{rule}', [InstagramKeywordRuleController::class, 'update'])->name('instagram-rules.update');
+        Route::delete('/instagram-rules/{rule}', [InstagramKeywordRuleController::class, 'destroy'])->name('instagram-rules.destroy');
 
-    Route::get('/admin', [AutomationsPanelController::class, 'index'])->name('admin.automations.index');
-});
-
-Route::middleware('admin')->prefix('admin/google-calendar')->name('admin.google-calendar.')->group(function () {
-    Route::get('/', [GoogleCalendarController::class, 'index'])->name('index');
-    Route::get('/connect', [GoogleCalendarController::class, 'connect'])->name('connect');
-    Route::get('/callback', [GoogleCalendarController::class, 'callback'])->name('callback');
-    Route::get('/debug', [GoogleCalendarController::class, 'debug'])->name('debug');
+        Route::prefix('google-calendar')->name('google-calendar.')->group(function () {
+            Route::get('/', [GoogleCalendarController::class, 'index'])->name('index');
+            Route::get('/connect', [GoogleCalendarController::class, 'connect'])->name('connect');
+            Route::get('/callback', [GoogleCalendarController::class, 'callback'])->name('callback');
+            Route::get('/debug', [GoogleCalendarController::class, 'debug'])->name('debug');
+        });
+    });
 });
