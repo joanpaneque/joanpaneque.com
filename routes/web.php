@@ -11,6 +11,10 @@ Route::get('/', function () {
     return Inertia::render('Welcome');
 });
 
+Route::get('/eisenhower', function () {
+    return Inertia::render('Eisenhower');
+})->name('eisenhower');
+
 Route::view('/meta-privacy', 'meta-privacy', [
     'controllerName' => config('services.meta.privacy_controller') ?: config('app.name'),
     'lastUpdated' => 'April 15, 2026',
