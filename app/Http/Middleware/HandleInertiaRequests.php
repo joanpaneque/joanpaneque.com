@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -35,6 +36,14 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $adminUser = null;
+        if ($request->session()->get('admin_authenticated') === true) {
+            $adminId = $request->session()->get('admin_user_id');
+            if (is_int($adminId) || (is_string($adminId) && ctype_digit($adminId))) {
+                $adminUser = User::query()->find((int) $adminId)?->only('id', 'name', 'email');
+            }
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
@@ -43,6 +52,9 @@ class HandleInertiaRequests extends Middleware
                     'name' => $request->user()->name,
                     'email' => $request->user()->email,
                 ] : null,
+            ],
+            'admin' => [
+                'user' => $adminUser,
             ],
         ];
     }

@@ -14,6 +14,7 @@
     </style>
 </head>
 <body>
+    <p style="margin-bottom: 1rem;"><a href="{{ route('admin.automations.index') }}">← Panel de automatizaciones</a></p>
     <h1>Google Calendar</h1>
     @if(session('success'))
         <div class="success">{{ session('success') }}</div>

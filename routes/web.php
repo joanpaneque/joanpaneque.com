@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Admin\AdminAuthController;
+use App\Http\Controllers\Admin\AutomationsPanelController;
 use App\Http\Controllers\Admin\GoogleCalendarController;
 use App\Http\Controllers\PersonalController;
 use Illuminate\Support\Facades\Route;
@@ -8,6 +10,10 @@ use Inertia\Inertia;
 Route::get('/', function () {
     return Inertia::render('Welcome');
 });
+
+Route::get('/eisenhower', function () {
+    return Inertia::render('Eisenhower');
+})->name('eisenhower');
 
 Route::view('/meta-privacy', 'meta-privacy', [
     'controllerName' => config('services.meta.privacy_controller') ?: config('app.name'),
@@ -34,19 +40,14 @@ Route::middleware('auth')->group(function () {
     Route::post('/personal/logout', [PersonalController::class, 'logout'])->name('personal.logout');
 });
 
-Route::get('/admin/login', function () {
-    return view('admin.login');
-})->name('admin.login');
+Route::get('/admin/login', [AdminAuthController::class, 'showLogin'])->name('admin.login');
+Route::post('/admin/login', [AdminAuthController::class, 'login'])->name('admin.login.store');
 
-Route::post('/admin/login', function () {
-    $secret = config('services.google.admin_secret');
-    if (empty($secret) || request()->input('admin_secret') !== $secret) {
-        return back()->withErrors(['admin_secret' => 'Contrasena incorrecta.']);
-    }
-    request()->session()->put('admin_authenticated', true);
+Route::middleware('admin')->group(function () {
+    Route::post('/admin/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
 
-    return redirect()->intended(route('admin.google-calendar.index'));
-})->name('admin.login.store');
+    Route::get('/admin', [AutomationsPanelController::class, 'index'])->name('admin.automations.index');
+});
 
 Route::middleware('admin')->prefix('admin/google-calendar')->name('admin.google-calendar.')->group(function () {
     Route::get('/', [GoogleCalendarController::class, 'index'])->name('index');
