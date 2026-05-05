@@ -667,6 +667,22 @@
   const headerSub = document.getElementById("headerSub");
   const headerTabs = document.querySelector(".header-tabs");
 
+  const SECTION_STORAGE_KEY = "nuria.plan.section";
+
+  function readStoredSection() {
+    try {
+      const v = localStorage.getItem(SECTION_STORAGE_KEY);
+      if (v === "comidas" || v === "ejercicios") return v;
+    } catch (_) {}
+    return "ejercicios";
+  }
+
+  function persistSection(section) {
+    try {
+      localStorage.setItem(SECTION_STORAGE_KEY, section);
+    } catch (_) {}
+  }
+
   function setSection(section) {
     const isEjercicios = section === "ejercicios";
     panelEjercicios.hidden = !isEjercicios;
@@ -679,7 +695,10 @@
     headerSub.textContent = isEjercicios
       ? "17 sesiones · entrenamiento"
       : "Comidas e ideas para mayo";
+    persistSection(section);
   }
+
+  setSection(readStoredSection());
 
   headerTabs.addEventListener("click", (e) => {
     const btn = e.target.closest(".header-tab");
