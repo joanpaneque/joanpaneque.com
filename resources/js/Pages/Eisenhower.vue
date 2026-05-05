@@ -441,7 +441,7 @@ function clearAll() {
                         autocapitalize="sentences"
                         enterkeyhint="done"
                         maxlength="240"
-                        class="quadrant-input min-w-0 flex-1 rounded-md bg-transparent px-2 py-1.5 text-[13px] text-slate-100 placeholder:text-slate-600 focus:outline-none sm:text-sm"
+                        class="quadrant-input min-w-0 flex-1 rounded-md bg-transparent px-2 py-1.5 text-base text-slate-100 placeholder:text-slate-600 focus:outline-none"
                         :style="{ caretColor: q.color }"
                         @keydown.escape="drafts[q.id] = ''"
                     />

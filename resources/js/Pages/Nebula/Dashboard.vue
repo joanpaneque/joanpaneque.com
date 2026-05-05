@@ -24,8 +24,11 @@ function logout() {
                 <Link href="/nebula/instagram-rules" class="text-teal-500 hover:text-teal-400">
                     Reglas Instagram (keywords / DM)
                 </Link>
-                <Link href="/nebula/google-calendar" class="text-neutral-400 hover:text-neutral-200">
-                    Google Calendar
+                <a href="/auth/google" class="text-blue-400 hover:text-blue-300">
+                    Conectar Google Calendar
+                </a>
+                <Link href="/calendar" class="text-indigo-400 hover:text-indigo-300">
+                    Ver calendario
                 </Link>
             </nav>
         </main>

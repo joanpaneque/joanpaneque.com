@@ -4,25 +4,27 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
-use App\Services\GoogleCalendarService;
+use App\Services\BookingSlotService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class BookingController extends Controller
 {
     private const DATE_FORMAT = 'Y-m-d';
+
     private const MAX_DAYS_AHEAD = 60;
 
     public function __construct(
-        private readonly GoogleCalendarService $calendar
+        private readonly BookingSlotService $slots
     ) {}
 
     public function availability(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'date' => ['required', 'date_format:' . self::DATE_FORMAT, 'after_or_equal:today'],
+            'date' => ['required', 'date_format:'.self::DATE_FORMAT, 'after_or_equal:today'],
         ]);
 
         $date = $validated['date'];
@@ -32,9 +34,7 @@ class BookingController extends Controller
             return response()->json(['slots' => []]);
         }
 
-        $slots = $this->calendar->getAvailableSlots($date);
-
-        return response()->json(['slots' => $slots]);
+        return response()->json(['slots' => $this->slots->getAvailableSlots($date)]);
     }
 
     public function book(Request $request): JsonResponse
@@ -67,19 +67,8 @@ class BookingController extends Controller
             throw ValidationException::withMessages(['start' => ['Slot no valido.']]);
         }
 
-        if (!$this->calendar->isSlotAvailable($start)) {
+        if (! $this->slots->isSlotAvailable($start)) {
             throw ValidationException::withMessages(['start' => ['El slot ya no esta disponible.']]);
-        }
-
-        $eventId = $this->calendar->createEvent(
-            $start,
-            $validated['name'],
-            $validated['email'] ?? null,
-            $validated['notes'] ?? null
-        );
-
-        if (!$eventId) {
-            return response()->json(['message' => 'Error al crear la reserva.'], 500);
         }
 
         $end = $parsed->copy()->addMinutes(30);
@@ -87,7 +76,7 @@ class BookingController extends Controller
             'start' => $parsed,
             'end' => $end,
             'email' => $validated['email'] ?? null,
-            'event_id' => $eventId,
+            'event_id' => (string) Str::uuid(),
         ]);
 
         return response()->json([

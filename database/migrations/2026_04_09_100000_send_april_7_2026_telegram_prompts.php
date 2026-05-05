@@ -19,41 +19,41 @@ return new class extends Migration
 
     public function up(): void
     {
-        if (! config('services.telegram.chat_id')) {
-            return;
-        }
+        // if (! config('services.telegram.chat_id')) {
+        //     return;
+        // }
 
-        $day = Carbon::create(2026, 4, 7, 0, 0, 0, self::TZ);
+        // $day = Carbon::create(2026, 4, 7, 0, 0, 0, self::TZ);
 
-        $toothFairy = app(ToothFairy::class);
-        $phoneAway = app(PhoneAwayFairy::class);
+        // $toothFairy = app(ToothFairy::class);
+        // $phoneAway = app(PhoneAwayFairy::class);
 
-        $morning = $toothFairy->sendBrushingPrompt(
-            20,
-            'Te has lavado los dientes por la mañana?',
-            'morning',
-        );
-        $morning->update(['prompt_sent_at' => $day->copy()->setTime(7, 45, 0)]);
-        $this->sleepBetweenSends();
+        // $morning = $toothFairy->sendBrushingPrompt(
+        //     20,
+        //     'Te has lavado los dientes por la mañana?',
+        //     'morning',
+        // );
+        // $morning->update(['prompt_sent_at' => $day->copy()->setTime(7, 45, 0)]);
+        // $this->sleepBetweenSends();
 
-        $midday = $toothFairy->sendBrushingPrompt(
-            4 * 60,
-            'Te has lavado los dientes al mediodía?',
-            'midday',
-        );
-        $midday->update(['prompt_sent_at' => $day->copy()->setTime(13, 0, 0)]);
-        $this->sleepBetweenSends();
+        // $midday = $toothFairy->sendBrushingPrompt(
+        //     4 * 60,
+        //     'Te has lavado los dientes al mediodía?',
+        //     'midday',
+        // );
+        // $midday->update(['prompt_sent_at' => $day->copy()->setTime(13, 0, 0)]);
+        // $this->sleepBetweenSends();
 
-        $night = $toothFairy->sendBrushingPrompt(
-            4 * 60,
-            'Te has lavado los dientes por la noche?',
-            'night',
-        );
-        $night->update(['prompt_sent_at' => $day->copy()->setTime(20, 0, 0)]);
-        $this->sleepBetweenSends();
+        // $night = $toothFairy->sendBrushingPrompt(
+        //     4 * 60,
+        //     'Te has lavado los dientes por la noche?',
+        //     'night',
+        // );
+        // $night->update(['prompt_sent_at' => $day->copy()->setTime(20, 0, 0)]);
+        // $this->sleepBetweenSends();
 
-        $phone = $phoneAway->sendPrompt(4 * 60);
-        $phone->update(['prompt_sent_at' => $day->copy()->setTime(20, 0, 1)]);
+        // $phone = $phoneAway->sendPrompt(4 * 60);
+        // $phone->update(['prompt_sent_at' => $day->copy()->setTime(20, 0, 1)]);
     }
 
     public function down(): void

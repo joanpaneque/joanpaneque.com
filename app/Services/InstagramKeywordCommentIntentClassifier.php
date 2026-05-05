@@ -23,7 +23,7 @@ final class InstagramKeywordCommentIntentClassifier
 
         $allowedRuleIds = array_values(array_unique(array_map(fn (array $c) => $c['rule_id'], $top3)));
 
-        $model = (string) config('services.openrouter.keyword_intent_model', 'openai/gpt-4o-mini');
+        $model = (string) config('services.openrouter.keyword_intent_model', 'openai/gpt-oss-120b');
 
         $system = <<<'PROMPT'
 Eres un clasificador estricto. Recibes el texto de un comentario en Instagram y hasta 3 candidatos de "keywords" de automatización (cada uno con rule_id, keyword y una puntuación de similitud semántica).

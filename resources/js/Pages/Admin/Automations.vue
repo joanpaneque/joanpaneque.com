@@ -44,12 +44,6 @@ function logout() {
 
                 <nav class="mt-10 flex flex-wrap gap-4 text-sm">
                     <Link
-                        href="/admin/google-calendar"
-                        class="text-teal-400 underline-offset-4 hover:text-teal-300 hover:underline"
-                    >
-                        Google Calendar
-                    </Link>
-                    <Link
                         href="/"
                         class="text-zinc-500 underline-offset-4 hover:text-zinc-400 hover:underline"
                     >
