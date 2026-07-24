@@ -68,6 +68,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/instagram-rules/create', [InstagramKeywordRuleController::class, 'create'])->name('instagram-rules.create');
         Route::post('/instagram-rules', [InstagramKeywordRuleController::class, 'store'])->name('instagram-rules.store');
         Route::get('/instagram-rules/{rule}/edit', [InstagramKeywordRuleController::class, 'edit'])->name('instagram-rules.edit');
+        Route::post('/instagram-rules/{rule}/clone', [InstagramKeywordRuleController::class, 'clone'])->name('instagram-rules.clone');
         Route::put('/instagram-rules/{rule}', [InstagramKeywordRuleController::class, 'update'])->name('instagram-rules.update');
         Route::delete('/instagram-rules/{rule}', [InstagramKeywordRuleController::class, 'destroy'])->name('instagram-rules.destroy');
 

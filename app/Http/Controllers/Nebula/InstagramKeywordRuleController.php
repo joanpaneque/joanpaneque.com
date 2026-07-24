@@ -55,6 +55,21 @@ class InstagramKeywordRuleController extends Controller
         ]);
     }
 
+    public function clone(InstagramKeywordRule $rule): RedirectResponse
+    {
+        $copy = InstagramKeywordRule::query()->create([
+            'is_active' => false,
+            'keywords' => [],
+            'comment_reply_variants' => $rule->comment_reply_variants ?? [''],
+            'dm_phase1_text' => $rule->dm_phase1_text,
+            'dm_quick_replies' => $rule->dm_quick_replies,
+            'dm_phase2_reply_variants' => $rule->dm_phase2_reply_variants,
+        ]);
+
+        return redirect()->route('nebula.instagram-rules.edit', $copy)
+            ->with('success', 'Regla clonada. Pon keywords nuevas (no pueden repetirse) y actívala cuando quieras.');
+    }
+
     public function update(InstagramKeywordRuleRequest $request, InstagramKeywordRule $rule): RedirectResponse
     {
         $rule->update($request->validated());

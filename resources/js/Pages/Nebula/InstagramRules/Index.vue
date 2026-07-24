@@ -13,6 +13,10 @@ const page = usePage();
 const flashSuccess = computed(() => page.props.flash?.success);
 const flashWarning = computed(() => page.props.flash?.warning);
 
+function cloneRule(id) {
+    router.post(`/nebula/instagram-rules/${id}/clone`);
+}
+
 function destroyRule(id) {
     if (!confirm('¿Eliminar esta regla?')) {
         return;
@@ -62,13 +66,20 @@ function destroyRule(id) {
                             <td class="px-4 py-3 text-neutral-500">
                                 {{ r.dm_quick_replies?.length ? 'Sí' : 'No' }}
                             </td>
-                            <td class="px-4 py-3 text-right">
+                            <td class="px-4 py-3 text-right whitespace-nowrap">
                                 <Link
                                     :href="`/nebula/instagram-rules/${r.id}/edit`"
                                     class="mr-3 text-teal-500 hover:text-teal-400"
                                 >
                                     Editar
                                 </Link>
+                                <button
+                                    type="button"
+                                    class="mr-3 text-neutral-400 hover:text-neutral-200"
+                                    @click="cloneRule(r.id)"
+                                >
+                                    Clonar
+                                </button>
                                 <button
                                     type="button"
                                     class="text-neutral-500 hover:text-red-400"

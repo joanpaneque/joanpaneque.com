@@ -1,5 +1,6 @@
 <script setup>
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import InstagramRuleForm from './InstagramRuleForm.vue';
 
 const props = defineProps({
@@ -8,6 +9,9 @@ const props = defineProps({
         required: true,
     },
 });
+
+const page = usePage();
+const flashSuccess = computed(() => page.props.flash?.success);
 
 const form = useForm({
     is_active: props.rule.is_active,
@@ -41,6 +45,9 @@ function submit() {
             <span class="text-sm font-medium tracking-wide text-neutral-400">Editar regla #{{ rule.id }}</span>
         </header>
         <div class="mx-auto max-w-3xl p-8">
+            <p v-if="flashSuccess" class="mb-6 rounded border border-teal-900/50 bg-teal-950/40 px-4 py-2 text-sm text-teal-200">
+                {{ flashSuccess }}
+            </p>
             <InstagramRuleForm :form="form" @submit="submit">
                 <template #actions>
                     <button
