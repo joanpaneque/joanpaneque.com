@@ -4,12 +4,9 @@ namespace App\Services;
 
 use App\Models\InstagramDirectMessage;
 use App\Models\InstagramKeywordRule;
-use App\Models\InstagramKeywordRuleEmbedding;
-use App\Support\VectorSimilarity;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use RuntimeException;
 
 class InstagramCommentAutomation
 {
@@ -17,14 +14,11 @@ class InstagramCommentAutomation
 
     private const FACEBOOK_GRAPH_VERSION = 'v21.0';
 
-    private const TOP_KEYWORD_CANDIDATES = 3;
-
-    public function __construct(
-        private readonly InstagramKeywordCommentIntentClassifier $intentClassifier,
-    ) {}
+    /** Umbral mínimo de similitud (similar_text) para activar una keyword. Contención exacta = 100%. */
+    private const MIN_SIMILARITY_PERCENT = 80.0;
 
     /**
-     * Comentarios → embedding del texto, top-3 keywords por similitud, LLM confirma intención, luego flujo habitual.
+     * Comentarios → match de keywords por similitud textual (%) case-insensitive, luego flujo habitual.
      *
      * @param  array<string, mixed>  $payload
      */
@@ -98,66 +92,8 @@ class InstagramCommentAutomation
             return;
         }
 
-        $rows = InstagramKeywordRuleEmbedding::query()
-            ->whereHas('rule', fn ($q) => $q->where('is_active', true))
-            ->with('rule')
-            ->get();
-
-        if ($rows->isEmpty()) {
-            InstagramCommentContinueProcess::continue_process($fullWebhookPayload);
-
-            return;
-        }
-
-        try {
-            $commentEmbedding = OpenRouter::createEmbedding($text);
-        } catch (RuntimeException $e) {
-            Log::warning('Instagram comentario: embedding falló', ['message' => $e->getMessage()]);
-            Cache::forget('instagram:comment_rule:'.$commentId);
-            InstagramCommentContinueProcess::continue_process($fullWebhookPayload);
-
-            return;
-        }
-
-        $scored = [];
-        foreach ($rows as $row) {
-            $emb = $row->embedding;
-            if (! is_array($emb) || $emb === []) {
-                continue;
-            }
-            /** @var list<float> $emb */
-            $score = VectorSimilarity::cosineSimilarity($commentEmbedding, $emb);
-            $rid = $row->instagram_keyword_rule_id;
-            if (! is_int($rid)) {
-                continue;
-            }
-            $scored[] = [
-                'rule_id' => $rid,
-                'keyword' => (string) $row->keyword,
-                'score' => $score,
-            ];
-        }
-
-        usort($scored, fn (array $a, array $b) => $b['score'] <=> $a['score']);
-        $top3 = array_slice($scored, 0, self::TOP_KEYWORD_CANDIDATES);
-
-        if ($top3 === []) {
-            InstagramCommentContinueProcess::continue_process($fullWebhookPayload);
-
-            return;
-        }
-
-        $ruleId = $this->intentClassifier->classify($text, $top3);
-
-        if ($ruleId === null) {
-            InstagramCommentContinueProcess::continue_process($fullWebhookPayload);
-
-            return;
-        }
-
-        $rule = InstagramKeywordRule::query()->active()->whereKey($ruleId)->first();
+        $rule = $this->findBestMatchingRule($text);
         if ($rule === null) {
-            Log::warning('Instagram comentario: regla no activa o inexistente', ['rule_id' => $ruleId]);
             InstagramCommentContinueProcess::continue_process($fullWebhookPayload);
 
             return;
@@ -179,6 +115,88 @@ class InstagramCommentAutomation
         }
 
         $this->applyRule($rule, $commentId, $token, $senderId);
+    }
+
+    /**
+     * Elige la regla activa cuya keyword tenga mayor similitud % con el comentario (case-insensitive).
+     */
+    private function findBestMatchingRule(string $commentText): ?InstagramKeywordRule
+    {
+        $rules = InstagramKeywordRule::query()->active()->get();
+        $bestRule = null;
+        $bestScore = 0.0;
+        $bestKeywordLen = 0;
+
+        foreach ($rules as $rule) {
+            $keywords = $rule->keywords;
+            if (! is_array($keywords)) {
+                continue;
+            }
+            foreach ($keywords as $kw) {
+                if (! is_string($kw)) {
+                    continue;
+                }
+                $keyword = trim($kw);
+                if ($keyword === '') {
+                    continue;
+                }
+                $score = $this->keywordSimilarityPercent($commentText, $keyword);
+                if ($score < self::MIN_SIMILARITY_PERCENT) {
+                    continue;
+                }
+                $len = mb_strlen($keyword);
+                if (
+                    $score > $bestScore
+                    || ($score === $bestScore && $len > $bestKeywordLen)
+                ) {
+                    $bestScore = $score;
+                    $bestKeywordLen = $len;
+                    $bestRule = $rule;
+                }
+            }
+        }
+
+        if ($bestRule !== null) {
+            Log::info('Instagram comentario: keyword match', [
+                'rule_id' => $bestRule->id,
+                'similarity_percent' => round($bestScore, 2),
+            ]);
+        }
+
+        return $bestRule;
+    }
+
+    /**
+     * Similitud 0–100: contención case-insensitive = 100; si no, max(similar_text) del comentario
+     * completo y de cada token frente a la keyword.
+     */
+    private function keywordSimilarityPercent(string $comment, string $keyword): float
+    {
+        $commentNorm = mb_strtolower(trim($comment));
+        $keywordNorm = mb_strtolower(trim($keyword));
+
+        if ($commentNorm === '' || $keywordNorm === '') {
+            return 0.0;
+        }
+
+        if (mb_strpos($commentNorm, $keywordNorm) !== false) {
+            return 100.0;
+        }
+
+        similar_text($commentNorm, $keywordNorm, $percentFull);
+        $max = (float) $percentFull;
+
+        $tokens = preg_split('/\s+/u', $commentNorm, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        foreach ($tokens as $token) {
+            $token = trim($token, ".,!?;:\"'()[]{}…«»");
+            if ($token === '') {
+                continue;
+            }
+            similar_text($token, $keywordNorm, $percentToken);
+            $max = max($max, (float) $percentToken);
+        }
+
+        return $max;
     }
 
     private function applyRule(

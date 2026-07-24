@@ -3,7 +3,7 @@
 namespace App\Services;
 
 /**
- * Punto de extensión cuando un comentario no pasa el clasificador de intención (embeddings + LLM).
+ * Punto de extensión cuando un comentario no coincide con ninguna keyword (similitud %).
  * Aquí se podrá encadenar otro flujo en el futuro.
  */
 final class InstagramCommentContinueProcess
