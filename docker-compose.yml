@@ -1,14 +1,14 @@
 services:
-    laravel.test:
+    joanpaneque.com:
         build:
-            context: ./vendor/laravel/sail/runtimes/8.4
+            context: ./docker/8.4
             dockerfile: Dockerfile
             args:
-                WWWGROUP: '${WWWGROUP}'
+                WWWGROUP: '${WWWGROUP:-1000}'
         image: sail-8.4/app
         restart: unless-stopped
         environment:
-            WWWUSER: '${WWWUSER}'
+            WWWUSER: '${WWWUSER:-1000}'
             LARAVEL_SAIL: 1
         volumes:
             - '.:/var/www/html'
