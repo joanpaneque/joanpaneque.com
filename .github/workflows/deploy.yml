@@ -17,7 +17,7 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
             set -e
-            cd /var/www/joanpaneque.com
+            cd /root/joanpaneque.com
 
             PREV=$(git rev-parse HEAD)
             git fetch origin main
