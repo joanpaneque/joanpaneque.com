@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
     laravel.test:
         build:
@@ -8,34 +6,37 @@ services:
             args:
                 WWWGROUP: '${WWWGROUP}'
         image: sail-8.4/app
-        extra_hosts:
-            - 'host.docker.internal:host-gateway'
-        ports:
-            - '${APP_PORT:-80}:80'
-            - '${VITE_PORT:-5173}:5173'
+        restart: unless-stopped
         environment:
             WWWUSER: '${WWWUSER}'
             LARAVEL_SAIL: 1
-            XDEBUG_MODE: '${XDEBUG_MODE:-off}'
-            XDEBUG_CONFIG: '${XDEBUG_CONFIG:-client_host=host.docker.internal}'
         volumes:
             - '.:/var/www/html'
         networks:
             - sail
+            - traefik
         depends_on:
             - pgsql
             - redis
+        labels:
+            - traefik.enable=true
+            - traefik.docker.network=traefik
+            - traefik.http.routers.joanpaneque.rule=Host(`joanpaneque.com`) || Host(`www.joanpaneque.com`)
+            - traefik.http.routers.joanpaneque.entrypoints=websecure
+            - traefik.http.routers.joanpaneque.tls.certresolver=le
+            - traefik.http.routers.joanpaneque.middlewares=wwwredir
+            - traefik.http.services.joanpaneque.loadbalancer.server.port=80
+            - traefik.http.middlewares.wwwredir.redirectregex.regex=^https://www\.joanpaneque\.com/(.*)
+            - traefik.http.middlewares.wwwredir.redirectregex.replacement=https://joanpaneque.com/$${1}
+            - traefik.http.middlewares.wwwredir.redirectregex.permanent=true
 
     pgsql:
-        image: 'postgres:15'
+        image: 'postgres:17'
+        restart: unless-stopped
         environment:
-            PGPASSWORD: '${DB_PASSWORD:-password}'
             POSTGRES_DB: '${DB_DATABASE:-laravel}'
             POSTGRES_USER: '${DB_USERNAME:-sail}'
-            POSTGRES_PASSWORD: '${DB_PASSWORD:-password}'
-            POSTGRES_HOST_AUTH_METHOD: 'trust'
-        ports:
-            - '${FORWARD_DB_PORT:-5432}:5432'
+            POSTGRES_PASSWORD: '${DB_PASSWORD}'
         volumes:
             - 'sailpgsql:/var/lib/postgresql/data'
         networks:
@@ -47,8 +48,7 @@ services:
 
     redis:
         image: 'redis:alpine'
-        ports:
-            - '${FORWARD_REDIS_PORT:-6379}:6379'
+        restart: unless-stopped
         volumes:
             - 'sailredis:/data'
         networks:
@@ -61,6 +61,8 @@ services:
 networks:
     sail:
         driver: bridge
+    traefik:
+        external: true
 
 volumes:
     sailpgsql:
