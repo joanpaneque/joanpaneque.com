@@ -21,7 +21,7 @@ services:
         labels:
             - traefik.enable=true
             - traefik.docker.network=traefik
-            - traefik.http.routers.joanpaneque.rule=Host(`joanpaneque.com`) || Host(`www.joanpaneque.com`)
+            - traefik.http.routers.joanpaneque.rule=Host(`joanpaneque.com`)
             - traefik.http.routers.joanpaneque.entrypoints=websecure
             - traefik.http.routers.joanpaneque.tls.certresolver=le
             - traefik.http.routers.joanpaneque.middlewares=wwwredir
